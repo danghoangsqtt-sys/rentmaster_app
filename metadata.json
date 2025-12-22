@@ -1,0 +1,11 @@
+{
+  "name": "RentMaster Pro",
+  "description": "A comprehensive real estate management platform for professional landlords and property managers to track rentals, owners, assets, and payment schedules.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "permissions": [
+    "internet"
+  ]
+}

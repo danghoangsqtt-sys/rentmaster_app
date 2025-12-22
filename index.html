@@ -1,0 +1,160 @@
+
+<!DOCTYPE html>
+<html lang="vi" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>RentMaster Pro</title>
+  
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top);
+      --safe-bottom: env(safe-area-inset-bottom);
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #F8FAFC; 
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .dark body {
+      background-color: #0f172a;
+    }
+
+    /* Safe Area Helpers */
+    .pt-safe {
+      padding-top: env(safe-area-inset-top);
+    }
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .mt-safe {
+      margin-top: env(safe-area-inset-top);
+    }
+
+    #error-display {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #7f1d1d;
+      color: white;
+      padding: 20px;
+      display: none;
+      z-index: 10000;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    #initial-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      z-index: 9999;
+      transition: opacity 0.4s ease-out;
+    }
+    .loader-icon {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      animation: pulse 2s infinite;
+      box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.8; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0?external=react",
+    "react-router-dom": "https://esm.sh/react-router-dom@7.0.0?external=react,react-dom",
+    "@capacitor/core": "https://esm.sh/@capacitor/core@6.1.2",
+    "@capacitor/filesystem": "https://esm.sh/@capacitor/filesystem@6.0.2",
+    "@capacitor/preferences": "https://esm.sh/@capacitor/preferences@6.0.2",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <div id="error-display"></div>
+
+  <div id="initial-loader">
+    <div class="loader-icon">
+      <div class="spinner"></div>
+    </div>
+    <p style="color: white; font-size: 10px; font-weight: 800; letter-spacing: 4px; opacity: 0.6; text-transform: uppercase;">RentMaster Pro</p>
+  </div>
+  
+  <div id="root" class="h-full"></div>
+
+  <script type="module" src="./index.tsx"></script>
+
+  <script>
+    window.addEventListener('app-ready', () => {
+      const loader = document.getElementById('initial-loader');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+      }
+    });
+
+    // Fallback bảo vệ: Tự động ẩn loader sau 5 giây nếu React không phản hồi
+    setTimeout(() => {
+      const loader = document.getElementById('initial-loader');
+      if (loader) {
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+      }
+    }, 5000);
+  </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
