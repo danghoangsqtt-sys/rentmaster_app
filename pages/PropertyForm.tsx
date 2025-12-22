@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
@@ -10,6 +11,7 @@ import {
 import PhotoPicker from '../components/PhotoPicker';
 import { Property, Owner, Tenant, FamilyMember } from '../types';
 import { saveProperties, getStoredProperties, saveOwners, getStoredOwners } from '../data/mockData';
+import { StorageService } from '../services/StorageService';
 
 const PropertyForm: React.FC = () => {
   const { id } = useParams();
@@ -19,6 +21,7 @@ const PropertyForm: React.FC = () => {
   const [existingOwners, setExistingOwners] = useState<Owner[]>([]);
   const [ownerMode, setOwnerMode] = useState<'existing' | 'new'>('new');
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   const initialFormData = {
     // Bước 1: Bất động sản
@@ -151,140 +154,131 @@ const PropertyForm: React.FC = () => {
     window.scrollTo(0, 0);
   };
 
-  const addFamilyMember = () => {
-    setFormData({
-      ...formData,
-      familyMembers: [...formData.familyMembers, { name: '', relationship: '', idCardOrPassport: '' }]
-    });
+  const persistMedia = async (data: string, prefix: string) => {
+    if (!data || data.startsWith('file://') || data.startsWith('http')) return data;
+    return await StorageService.saveMedia(data, prefix);
   };
 
-  const updateFamilyMember = (index: number, field: keyof FamilyMember, value: string) => {
-    const updated = [...formData.familyMembers];
-    updated[index] = { ...updated[index], [field]: value };
-    setFormData({ ...formData, familyMembers: updated });
-  };
-
-  const removeFamilyMember = (index: number) => {
-    setFormData({
-      ...formData,
-      familyMembers: formData.familyMembers.filter((_, i) => i !== index)
-    });
+  const persistMediaArray = async (dataArr: string[], prefix: string) => {
+    return await Promise.all(dataArr.map(item => persistMedia(item, prefix)));
   };
 
   const handleSubmit = async () => {
+    setIsSaving(true);
     let ownerId = selectedOwnerId;
 
-    if (ownerMode === 'new') {
-      ownerId = 'o' + Date.now();
-      const newOwner: Owner = {
-        id: ownerId,
-        name: formData.ownerName,
-        phones: formData.ownerPhones,
-        address: formData.ownerAddress,
-        managementStartDate: new Date().toISOString(),
-        avatarUrl: '', 
-        idCardFront: formData.ownerIdCardImages[0] || '',
-        idCardBack: formData.ownerIdCardImages[1] || ''
-      };
-      const storedOwners = await getStoredOwners();
-      await saveOwners([...storedOwners, newOwner]);
-    }
+    try {
+      // Persist all media from form before saving to JSON
+      const persistedPropImages = await persistMediaArray(formData.images, 'prop');
+      const persistedOwnerIDImages = await persistMediaArray(formData.ownerIdCardImages, 'owner-id');
+      const persistedTenantIDImages = await persistMediaArray(formData.tenantIdCardImages, 'tenant-id');
+      const persistedPassportImages = await persistMediaArray(formData.passportImages, 'passport');
+      const persistedVisaImages = await persistMediaArray(formData.visaImages, 'visa');
+      const persistedContractImages = await persistMediaArray(formData.contractImages, 'contract');
+      const persistedResidencyImages = await persistMediaArray(formData.residencyImages, 'residency');
 
-    let tenant: Tenant | undefined = undefined;
-    if (formData.hasTenant) {
-      tenant = {
-        id: 't' + Date.now(),
-        name: formData.tenantName,
-        idCardUrl: formData.tenantIdCardImages[0] || '',
-        isForeigner: formData.isForeigner,
-        passportUrl: formData.passportImages[0] || '',
-        visaUrl: formData.visaImages[0] || '',
-        visaExpiryDate: formData.visaExpiryDate,
-        visaReminderDays: formData.visaReminderDays,
-        checkInDate: formData.checkInDate || new Date().toISOString().split('T')[0],
-        contractExpiryDate: formData.contractExpiryDate || '',
-        contractReminderDays: formData.contractReminderDays,
-        contractImages: formData.contractImages,
-        residencyRegistrationUrl: formData.residencyImages[0] || '',
-        rentAmount: formData.rentAmount,
-        rentPaymentDay: formData.rentPaymentDay,
-        electricityPaymentDay: formData.electricityPaymentDay,
-        waterPaymentDay: formData.waterPaymentDay,
-        managementPaymentDay: formData.managementPaymentDay,
-        wifiPaymentDay: formData.wifiPaymentDay,
-        servicePaymentDay: formData.electricityPaymentDay,
-        isRentPaid: false,
-        isUtilitiesPaid: false,
-        familyMembers: formData.familyMembers.length > 0 ? formData.familyMembers : undefined
-      };
-    }
-
-    const storedProps = await getStoredProperties();
-    const newProp: Property = {
-      id: isEdit ? id! : 'p' + Date.now(),
-      name: formData.name,
-      type: formData.type,
-      address: formData.address,
-      description: formData.description,
-      structure: formData.address,
-      imageUrl: formData.images[0] || '',
-      gallery: formData.images.slice(1),
-      ownerId: ownerId || '',
-      status: formData.hasTenant ? 'Rented' : 'Available',
-      condition: 'Normal',
-      totalAssetValue: 0,
-      constructionYear: new Date().getFullYear(),
-      operationStartDate: new Date().toISOString(),
-      assets: [],
-      tenant: tenant,
-      utilities: {
-        electricityCode: formData.electricityCode,
-        electricityLink: formData.electricityLink,
-        waterCode: formData.waterCode,
-        waterLink: formData.waterLink,
-        wifiCode: formData.wifiCode,
-        wifiLink: formData.wifiLink
+      if (ownerMode === 'new') {
+        ownerId = 'o' + Date.now();
+        const newOwner: Owner = {
+          id: ownerId,
+          name: formData.ownerName,
+          phones: formData.ownerPhones,
+          address: formData.ownerAddress,
+          managementStartDate: new Date().toISOString(),
+          avatarUrl: '', 
+          idCardFront: persistedOwnerIDImages[0] || '',
+          idCardBack: persistedOwnerIDImages[1] || ''
+        };
+        const storedOwners = await getStoredOwners();
+        await saveOwners([...storedOwners, newOwner]);
       }
-    };
-    
-    const updatedProps = isEdit 
-      ? storedProps.map(p => p.id === id ? newProp : p)
-      : [...storedProps, newProp];
 
-    await saveProperties(updatedProps);
-    navigate(isEdit ? `/property/${id}` : '/properties');
+      let tenant: Tenant | undefined = undefined;
+      if (formData.hasTenant) {
+        tenant = {
+          id: 't' + Date.now(),
+          name: formData.tenantName,
+          idCardUrl: persistedTenantIDImages[0] || '',
+          isForeigner: formData.isForeigner,
+          passportUrl: persistedPassportImages[0] || '',
+          visaUrl: persistedVisaImages[0] || '',
+          visaExpiryDate: formData.visaExpiryDate,
+          visaReminderDays: formData.visaReminderDays,
+          checkInDate: formData.checkInDate || new Date().toISOString().split('T')[0],
+          contractExpiryDate: formData.contractExpiryDate || '',
+          contractReminderDays: formData.contractReminderDays,
+          contractImages: persistedContractImages,
+          residencyRegistrationUrl: persistedResidencyImages[0] || '',
+          rentAmount: formData.rentAmount,
+          rentPaymentDay: formData.rentPaymentDay,
+          electricityPaymentDay: formData.electricityPaymentDay,
+          waterPaymentDay: formData.waterPaymentDay,
+          managementPaymentDay: formData.managementPaymentDay,
+          wifiPaymentDay: formData.wifiPaymentDay,
+          servicePaymentDay: formData.electricityPaymentDay,
+          isRentPaid: false,
+          isUtilitiesPaid: false,
+          familyMembers: formData.familyMembers.length > 0 ? formData.familyMembers : undefined
+        };
+      }
+
+      const storedProps = await getStoredProperties();
+      const newProp: Property = {
+        id: isEdit ? id! : 'p' + Date.now(),
+        name: formData.name,
+        type: formData.type,
+        address: formData.address,
+        description: formData.description,
+        structure: formData.address,
+        imageUrl: persistedPropImages[0] || '',
+        gallery: persistedPropImages.slice(1),
+        ownerId: ownerId || '',
+        status: formData.hasTenant ? 'Rented' : 'Available',
+        condition: 'Normal',
+        totalAssetValue: 0,
+        constructionYear: new Date().getFullYear(),
+        operationStartDate: new Date().toISOString(),
+        assets: [],
+        tenant: tenant,
+        utilities: {
+          electricityCode: formData.electricityCode,
+          electricityLink: formData.electricityLink,
+          waterCode: formData.waterCode,
+          waterLink: formData.waterLink,
+          wifiCode: formData.wifiCode,
+          wifiLink: formData.wifiLink
+        }
+      };
+      
+      const updatedProps = isEdit 
+        ? storedProps.map(p => p.id === id ? newProp : p)
+        : [...storedProps, newProp];
+
+      await saveProperties(updatedProps);
+      navigate(isEdit ? `/property/${id}` : '/properties');
+    } catch (error) {
+      console.error("Save error", error);
+      alert("Đã có lỗi xảy ra khi lưu dữ liệu. Vui lòng thử lại.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  // Selector for primary input fields
   const inputClass = "w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all mb-4 shadow-sm";
   const labelClass = "text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2 mb-2 flex items-center gap-2";
 
-  const ReminderOptions = ({ value, onChange, label }: { value: number, onChange: (val: number) => void, label: string }) => (
-    <div className="mb-4">
-      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 flex items-center gap-1.5">
-        <Bell size={10} className="text-blue-500" /> Nhắc nhở {label} (Số ngày trước khi hết hạn)
-      </label>
-      <div className="flex gap-2">
-        {[7, 14, 30].map(days => (
-          <button
-            key={days}
-            type="button"
-            onClick={() => onChange(days)}
-            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all border-2 ${
-              value === days 
-                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100' 
-                : 'bg-white border-slate-100 text-slate-400'
-            }`}
-          >
-            {days} ngày
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
   return (
     <div className="absolute inset-0 bg-slate-50 z-[100] flex flex-col font-sans overflow-hidden">
+      {/* Loading Overlay */}
+      {isSaving && (
+        <div className="absolute inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white p-8 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-2xl">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs font-black uppercase tracking-widest text-slate-600">Đang lưu hồ sơ...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white pt-safe pb-6 px-6 border-b border-slate-100 shadow-sm shrink-0">
         <div className="flex items-center justify-between mb-6 pt-6">
@@ -357,7 +351,7 @@ const PropertyForm: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0">
                           {owner.avatarUrl ? (
-                            <img src={owner.avatarUrl} className="w-full h-full object-cover" />
+                            <img src={StorageService.getDisplayUrl(owner.avatarUrl)} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-300"><User size={20} /></div>
                           )}
@@ -455,13 +449,6 @@ const PropertyForm: React.FC = () => {
                     <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-4">
                       <label className={labelClass}><Globe size={12}/> Thời hạn Visa (Cảnh báo tự động)</label>
                       <input type="date" className={inputClass} value={formData.visaExpiryDate} onChange={e => setFormData({...formData, visaExpiryDate: e.target.value})} />
-                      
-                      <ReminderOptions 
-                        label="Visa"
-                        value={formData.visaReminderDays} 
-                        onChange={val => setFormData({...formData, visaReminderDays: val})} 
-                      />
-
                       <PhotoPicker label="ẢNH VISA" images={formData.visaImages} onChange={imgs => setFormData({...formData, visaImages: imgs})} />
                     </div>
                   )}
@@ -472,10 +459,7 @@ const PropertyForm: React.FC = () => {
                     <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2">
                       <Users size={14}/> Thành viên gia đình / Cùng ở
                     </h4>
-                    <button 
-                      onClick={addFamilyMember}
-                      className="p-2 bg-emerald-600 text-white rounded-xl shadow-sm active:scale-90 transition-transform"
-                    >
+                    <button onClick={() => setFormData({...formData, familyMembers: [...formData.familyMembers, { name: '', relationship: '', idCardOrPassport: '' }]})} className="p-2 bg-emerald-600 text-white rounded-xl shadow-sm active:scale-90 transition-transform">
                       <Plus size={14} />
                     </button>
                   </div>
@@ -484,41 +468,35 @@ const PropertyForm: React.FC = () => {
                     <div className="space-y-4">
                       {formData.familyMembers.map((member, idx) => (
                         <div key={idx} className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm relative animate-in slide-in-from-left-4">
-                          <button 
-                            onClick={() => removeFamilyMember(idx)}
-                            className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform z-10"
-                          >
+                          <button onClick={() => setFormData({...formData, familyMembers: formData.familyMembers.filter((_, i) => i !== idx)})} className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform z-10">
                             <Trash2 size={12} />
                           </button>
                           
                           <div className="space-y-3">
                             <div>
                               <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Họ tên thành viên</label>
-                              <input 
-                                className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                                placeholder="Tên thành viên..."
-                                value={member.name}
-                                onChange={e => updateFamilyMember(idx, 'name', e.target.value)}
-                              />
+                              <input className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Tên thành viên..." value={member.name} onChange={e => {
+                                const up = [...formData.familyMembers];
+                                up[idx].name = e.target.value;
+                                setFormData({...formData, familyMembers: up});
+                              }} />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Quan hệ</label>
-                                <input 
-                                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                                  placeholder="Vợ, con, bạn..."
-                                  value={member.relationship}
-                                  onChange={e => updateFamilyMember(idx, 'relationship', e.target.value)}
-                                />
+                                <input className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Vợ, con..." value={member.relationship} onChange={e => {
+                                  const up = [...formData.familyMembers];
+                                  up[idx].relationship = e.target.value;
+                                  setFormData({...formData, familyMembers: up});
+                                }} />
                               </div>
                               <div>
                                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 block">CCCD/Hộ chiếu</label>
-                                <input 
-                                  className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                                  placeholder="Số định danh..."
-                                  value={member.idCardOrPassport}
-                                  onChange={e => updateFamilyMember(idx, 'idCardOrPassport', e.target.value)}
-                                />
+                                <input className="w-full bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Số định danh..." value={member.idCardOrPassport} onChange={e => {
+                                  const up = [...formData.familyMembers];
+                                  up[idx].idCardOrPassport = e.target.value;
+                                  setFormData({...formData, familyMembers: up});
+                                }} />
                               </div>
                             </div>
                           </div>
@@ -531,10 +509,10 @@ const PropertyForm: React.FC = () => {
                 </section>
 
                 <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Calendar size={14}/> Chu kỳ thanh toán (Ngày hàng tháng)</h4>
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Calendar size={14}/> Chu kỳ thanh toán</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={labelClass}>Tiền Nhà</label>
+                      <label className={labelClass}>Ngày thu Tiền Nhà</label>
                       <input type="number" min="1" max="31" className={inputClass} value={formData.rentPaymentDay} onChange={e => setFormData({...formData, rentPaymentDay: parseInt(e.target.value)})} />
                     </div>
                     <div>
@@ -552,16 +530,6 @@ const PropertyForm: React.FC = () => {
                       <input type="number" min="1" max="31" className={inputClass} value={formData.waterPaymentDay} onChange={e => setFormData({...formData, waterPaymentDay: parseInt(e.target.value)})} />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className={labelClass}>Ngày thu Tiền Wifi</label>
-                      <input type="number" min="1" max="31" className={inputClass} value={formData.wifiPaymentDay} onChange={e => setFormData({...formData, wifiPaymentDay: parseInt(e.target.value)})} />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Ngày thu Phí QL</label>
-                      <input type="number" min="1" max="31" className={inputClass} value={formData.managementPaymentDay} onChange={e => setFormData({...formData, managementPaymentDay: parseInt(e.target.value)})} />
-                    </div>
-                  </div>
                 </section>
 
                 <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-6">
@@ -572,12 +540,6 @@ const PropertyForm: React.FC = () => {
                       <input type="date" className={inputClass} value={formData.contractExpiryDate} onChange={e => setFormData({...formData, contractExpiryDate: e.target.value})} />
                     </div>
                   </div>
-
-                  <ReminderOptions 
-                    label="Hợp đồng"
-                    value={formData.contractReminderDays} 
-                    onChange={val => setFormData({...formData, contractReminderDays: val})} 
-                  />
                 </section>
 
                 <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
@@ -600,7 +562,7 @@ const PropertyForm: React.FC = () => {
         {step < 4 ? (
           <button onClick={nextStep} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3">TIẾP THEO <ChevronRight size={16} /></button>
         ) : (
-          <button onClick={handleSubmit} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3">{isEdit ? 'CẬP NHẬT' : 'HOÀN TẤT'} <Save size={16} /></button>
+          <button onClick={handleSubmit} disabled={isSaving} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3 disabled:opacity-50">{isEdit ? 'CẬP NHẬT' : 'HOÀN TẤT'} <Save size={16} /></button>
         )}
       </div>
     </div>

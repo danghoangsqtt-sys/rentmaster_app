@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Building2, AlertCircle, Sparkles, Calendar, ShieldAlert,
   Home, ArrowRight, ClipboardCheck, CheckCircle2,
-  ArrowUpRight, TrendingUp
+  ArrowUpRight, TrendingUp, Users
 } from 'lucide-react';
 import { getStoredProperties, getStoredOwners, getStoredSchedule, getStoredProfile } from '../data/mockData';
 import { getPropertyAlerts } from '../utils/alertUtils';
@@ -75,6 +75,14 @@ const Dashboard: React.FC = () => {
           onClick={() => navigate('/properties')} 
         />
         <StatCard 
+          label="Chủ sở hữu" 
+          value={stats.owners} 
+          icon={Users} 
+          color="text-indigo-600" 
+          bgColor="bg-indigo-50 dark:bg-indigo-900/20" 
+          onClick={() => navigate('/properties?tab=owners')} 
+        />
+        <StatCard 
           label="Đã cho thuê" 
           value={stats.rented} 
           icon={CheckCircle2} 
@@ -90,14 +98,17 @@ const Dashboard: React.FC = () => {
           bgColor="bg-amber-50 dark:bg-amber-900/20" 
           onClick={() => navigate('/properties')} 
         />
-        <StatCard 
-          label="Cảnh báo mới" 
-          value={stats.allAlerts.length} 
-          icon={ShieldAlert} 
-          color="text-rose-600" 
-          bgColor="bg-rose-50 dark:bg-rose-900/20" 
-          onClick={() => navigate('/notifications')} 
-        />
+        <div className="col-span-2">
+           <StatCard 
+            label="Cảnh báo quan trọng cần xử lý" 
+            value={stats.allAlerts.length} 
+            icon={ShieldAlert} 
+            color="text-rose-600" 
+            bgColor="bg-rose-50 dark:bg-rose-900/20" 
+            onClick={() => navigate('/notifications')} 
+            fullWidth
+          />
+        </div>
       </div>
 
       {/* Today's Tasks */}
@@ -158,13 +169,13 @@ const Dashboard: React.FC = () => {
   );
 };
 
-const StatCard = ({ label, value, icon: Icon, color, bgColor, onClick }: any) => (
-  <button onClick={onClick} className="bg-white dark:bg-slate-800 p-5 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm text-left active:scale-[0.97] transition-all relative overflow-hidden group">
-    <div className={`${bgColor} ${color} w-11 h-11 rounded-2xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110`}>
+const StatCard = ({ label, value, icon: Icon, color, bgColor, onClick, fullWidth }: any) => (
+  <button onClick={onClick} className={`bg-white dark:bg-slate-800 p-5 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm text-left active:scale-[0.97] transition-all relative overflow-hidden group ${fullWidth ? 'w-full flex items-center gap-5' : ''}`}>
+    <div className={`${bgColor} ${color} w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shrink-0 ${!fullWidth ? 'mb-6' : ''}`}>
       <Icon size={22} />
     </div>
-    <div className="flex flex-col">
-      <div className="text-3xl font-black text-slate-900 dark:text-white leading-none tracking-tighter italic">{value}</div>
+    <div className="flex flex-col flex-1">
+      <div className={`${fullWidth ? 'text-xl' : 'text-3xl'} font-black text-slate-900 dark:text-white leading-none tracking-tighter italic`}>{value}</div>
       <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mt-2 whitespace-nowrap">{label}</div>
     </div>
     <div className="absolute top-4 right-4 text-slate-200 dark:text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity">

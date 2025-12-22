@@ -8,9 +8,11 @@ import {
 import PhotoPicker from '../components/PhotoPicker';
 import { Owner } from '../types';
 import { saveOwners, getStoredOwners } from '../data/mockData';
+import { StorageService } from '../services/StorageService';
 
 const OwnerForm: React.FC = () => {
   const navigate = useNavigate();
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phones: [''],
@@ -36,24 +38,41 @@ const OwnerForm: React.FC = () => {
     }
   };
 
+  const persistMedia = async (data: string, prefix: string) => {
+    if (!data || data.startsWith('file://') || data.startsWith('http')) return data;
+    return await StorageService.saveMedia(data, prefix);
+  };
+
   const handleSubmit = async () => {
     if (!formData.name) return alert("Vui lòng nhập tên chủ sở hữu!");
     if (!formData.phones[0]) return alert("Vui lòng nhập ít nhất một số điện thoại!");
 
-    const newOwner: Owner = {
-      id: 'o' + Date.now(),
-      name: formData.name,
-      phones: formData.phones.filter(p => p !== ''),
-      address: formData.address,
-      avatarUrl: formData.avatarUrl,
-      idCardFront: formData.idCardFront,
-      idCardBack: formData.idCardBack,
-      managementStartDate: new Date().toISOString()
-    };
+    setIsSaving(true);
+    try {
+      const persistedAvatar = await persistMedia(formData.avatarUrl, 'owner-avatar');
+      const persistedIDFront = await persistMedia(formData.idCardFront, 'owner-id-front');
+      const persistedIDBack = await persistMedia(formData.idCardBack, 'owner-id-back');
 
-    const storedOwners = await getStoredOwners();
-    await saveOwners([...storedOwners, newOwner]);
-    navigate('/properties'); // Quay lại danh sách
+      const newOwner: Owner = {
+        id: 'o' + Date.now(),
+        name: formData.name,
+        phones: formData.phones.filter(p => p !== ''),
+        address: formData.address,
+        avatarUrl: persistedAvatar,
+        idCardFront: persistedIDFront,
+        idCardBack: persistedIDBack,
+        managementStartDate: new Date().toISOString()
+      };
+
+      const storedOwners = await getStoredOwners();
+      await saveOwners([...storedOwners, newOwner]);
+      navigate('/properties?tab=owners');
+    } catch (error) {
+      console.error("Save error", error);
+      alert("Đã có lỗi khi lưu hồ sơ chủ sở hữu.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const inputClass = "w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all mb-4 shadow-sm";
@@ -61,6 +80,16 @@ const OwnerForm: React.FC = () => {
 
   return (
     <div className="absolute inset-0 bg-slate-50 z-[100] flex flex-col font-sans overflow-hidden">
+      {/* Loading Overlay */}
+      {isSaving && (
+        <div className="absolute inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white p-8 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-2xl">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs font-black uppercase tracking-widest text-slate-600">Đang lưu hồ sơ...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white pt-safe pb-6 px-6 border-b border-slate-100 shadow-sm shrink-0">
         <div className="flex items-center justify-between pt-6">
@@ -83,7 +112,7 @@ const OwnerForm: React.FC = () => {
           <div className="relative group">
             <div className="w-24 h-24 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-xl bg-slate-100">
               {formData.avatarUrl ? (
-                <img src={formData.avatarUrl} className="w-full h-full object-cover" />
+                <img src={StorageService.getDisplayUrl(formData.avatarUrl)} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-300">
                   <User size={40} />
@@ -160,7 +189,7 @@ const OwnerForm: React.FC = () => {
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-100 z-[110] pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl">
-        <button onClick={handleSubmit} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg shadow-slate-200">
+        <button onClick={handleSubmit} disabled={isSaving} className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg shadow-slate-200 disabled:opacity-50">
           LƯU THÔNG TIN CHỦ NHÀ <Save size={16} />
         </button>
       </div>

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Search, MapPin, SlidersHorizontal, Plus, AlertCircle, 
   Building2, Users, Phone, X, Camera, Save, Trash2, Edit3, User, UserPlus
@@ -12,10 +12,13 @@ import { StorageService } from '../services/StorageService';
 
 const PropertyList: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'properties' | 'owners'>('properties');
+  const [activeTab, setActiveTab] = useState<'properties' | 'owners'>(
+    searchParams.get('tab') === 'owners' ? 'owners' : 'properties'
+  );
   const [activeCategory, setActiveCategory] = useState('Tất cả');
 
   useEffect(() => {
@@ -46,7 +49,8 @@ const PropertyList: React.FC = () => {
   const filteredProperties = useMemo(() => {
     return properties.filter(p => {
       const searchStr = searchTerm.toLowerCase();
-      const matchesSearch = p.name.toLowerCase().includes(searchStr);
+      const matchesSearch = p.name.toLowerCase().includes(searchStr) || 
+                           (p.tenant?.name || '').toLowerCase().includes(searchStr);
       const matchesCategory = activeCategory === 'Tất cả' || p.type === activeCategory;
       return matchesSearch && matchesCategory;
     });
@@ -70,7 +74,7 @@ const PropertyList: React.FC = () => {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
           <input 
-            type="text" placeholder={activeTab === 'properties' ? "Tìm căn hộ..." : "Tìm chủ nhà..."} 
+            type="text" placeholder={activeTab === 'properties' ? "Tìm căn hộ, khách thuê..." : "Tìm chủ nhà..."} 
             className="w-full bg-slate-100 dark:bg-slate-700 rounded-xl py-3 pl-10 pr-4 text-xs font-bold outline-none dark:text-white focus:ring-2 focus:ring-blue-500/20 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -102,9 +106,15 @@ const PropertyList: React.FC = () => {
                       <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold uppercase mt-1">
                         <MapPin size={10} className="text-blue-500" /> <span className="truncate">{property.address || property.structure}</span>
                       </div>
+                      {property.tenant && (
+                        <div className="flex items-center gap-1 mt-1 text-indigo-600 dark:text-indigo-400">
+                           <User size={10} />
+                           <p className="text-[10px] font-black uppercase truncate">{property.tenant.name}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-auto">
+                  <div className="flex items-center justify-between mt-2">
                     <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-lg ${property.status === 'Rented' ? 'bg-emerald-500 text-white' : 'bg-slate-400 text-white'}`}>
                       {property.status === 'Rented' ? 'Đã thuê' : 'Trống'}
                     </span>
