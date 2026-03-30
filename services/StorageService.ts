@@ -39,11 +39,29 @@ export class StorageService {
   }
 
   /**
-   * Lưu file media (blob) vào bộ nhớ vật lý và trả về URI
+   * Lưu file media (blob/base64) vào bộ nhớ vật lý và trả về URI
    */
-  static async saveMedia(file: File): Promise<string> {
-    const fileName = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
-    const base64Data = await this.fileToBase64(file);
+  static async saveMedia(data: string, prefix: string = 'media'): Promise<string> {
+    let extension = 'png';
+    let base64Data = data;
+    
+    // Nếu data có chứa header data:image/png;base64, hoặc data:video/mp4;base64, , hãy trích xuất extension và cắt bỏ phần header
+    if (data.startsWith('data:')) {
+      const mimeMatch = data.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/);
+      if (mimeMatch && mimeMatch[1]) {
+        const mimeType = mimeMatch[1];
+        if (mimeType.includes('video')) {
+          extension = mimeType.split('/')[1] || 'mp4';
+        } else if (mimeType.includes('image')) {
+          extension = mimeType.split('/')[1] || 'png';
+        }
+      }
+      base64Data = data.split(',')[1];
+    }
+
+    const fileName = `${prefix}-${Date.now()}.${extension}`;
+    
+
 
     const result = await Filesystem.writeFile({
       path: `rentmaster/media/${fileName}`,

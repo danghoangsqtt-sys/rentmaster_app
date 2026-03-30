@@ -1,40 +1,42 @@
-
-import React, { useMemo, useEffect, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Building2, AlertCircle, Sparkles, Calendar, ShieldAlert,
-  Home, ArrowRight, ClipboardCheck, CheckCircle2,
-  ArrowUpRight, TrendingUp, Users
+  Building2, Users, AlertTriangle, ArrowRight,
+  TrendingUp, CheckCircle2, Home, Newspaper
 } from 'lucide-react';
-import { getStoredProperties, getStoredOwners, getStoredSchedule, getStoredProfile } from '../data/mockData';
 import { getPropertyAlerts } from '../utils/alertUtils';
-import { Property, Owner, ScheduleEvent } from '../types';
+import { useAppContext } from '../data/AppContext';
+
+interface NewsItem {
+  title: string;
+  link: string;
+  thumbnail: string;
+  pubDate: string;
+}
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [owners, setOwners] = useState<Owner[]>([]);
-  const [schedule, setSchedule] = useState<ScheduleEvent[]>([]);
-  const [profile, setProfile] = useState<any>(null);
+  const { properties, owners, schedule, profile } = useAppContext();
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
 
   useEffect(() => {
-    const loadAllData = async () => {
-      const [p, o, s, pr] = await Promise.all([
-        getStoredProperties(),
-        getStoredOwners(),
-        getStoredSchedule(),
-        getStoredProfile()
-      ]);
-      setProperties(p);
-      setOwners(o);
-      setSchedule(s);
-      setProfile(pr);
-    };
-    loadAllData();
+    // Fetch RSS feed via rss2json API to bypass CORS
+    fetch('https://api.rss2json.com/v1/api.json?rss_url=https://vnexpress.net/rss/bat-dong-san.rss')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.items) {
+          setNews(data.items.slice(0, 5));
+        }
+      })
+      .catch(err => console.error("Error fetching news:", err))
+      .finally(() => setNewsLoading(false));
   }, []);
 
   const stats = useMemo(() => {
     const rented = properties.filter(p => p.status === 'Rented').length;
+    const sold = properties.filter(p => p.status === 'Sold').length;
+    const available = properties.filter(p => p.status === 'Available').length;
     const allAlerts = properties.flatMap(p => getPropertyAlerts(p));
     const today = new Date().toISOString().split('T')[0];
     const todayTasks = schedule.filter(s => s.date === today && !s.isCompleted);
@@ -43,145 +45,195 @@ const Dashboard: React.FC = () => {
       total: properties.length,
       owners: owners.length,
       rented: rented,
-      available: properties.length - rented,
+      sold: sold,
+      available: available,
       allAlerts: allAlerts,
       todayTasks
     };
   }, [properties, owners, schedule]);
 
   return (
-    <div className="p-4 space-y-6 animate-in fade-in duration-700 bg-slate-50 dark:bg-slate-900 min-h-full">
-      {/* Welcome Header */}
-      <section className="flex items-center justify-between mt-2">
-        <div>
-          <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2 italic tracking-tight">
-            Chào {profile?.name.split(' ').pop() || 'bạn'}! <Sparkles size={20} className="text-amber-400 animate-pulse" />
-          </h2>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Quản lý hiệu quả cùng RentMaster</p>
-        </div>
-        <div className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center text-blue-600 border border-slate-100 dark:border-slate-700 shadow-sm">
-          <TrendingUp size={24} />
+    <div className="animate-in fade-in duration-500 bg-white min-h-full pb-[calc(5rem+env(safe-area-inset-bottom))]">
+      <section className="pt-4 px-5">
+
+        {/* My Activity / Efficiency Card - Reduced Sizes */}
+        <div className="bg-slate-50/80 rounded-[1.5rem] p-4 border border-slate-100/60 shadow-sm relative overflow-hidden backdrop-blur-xl">
+           <div className="flex justify-between items-start relative z-10">
+             <div>
+               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Hiệu suất cho thuê</p>
+               <div className="flex items-baseline gap-1.5 mt-0.5">
+                 <span className="text-xl font-black text-slate-900 tracking-tight">{stats.rented}</span>
+                 <span className="text-[10px] font-bold text-slate-400">/ {stats.total} phòng</span>
+               </div>
+             </div>
+             <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center shadow-sm text-blue-600 border border-slate-100 shrink-0">
+               <TrendingUp size={14} strokeWidth={2.5}/>
+             </div>
+           </div>
+
+           <div className="mt-4 flex items-center justify-between relative z-10">
+             <div className="flex-1 pr-3 border-r border-slate-200/60">
+                <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> Đã thuê
+                </div>
+                <div className="text-sm font-black text-slate-800">{stats.rented}</div>
+             </div>
+             <div className="flex-1 px-3 border-r border-slate-200/60">
+                <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-amber-400"></div> Đã bán
+                </div>
+                <div className="text-sm font-black text-slate-800">{stats.sold}</div>
+             </div>
+             <div className="flex-1 pl-3">
+                <div className="flex items-center gap-1.5 text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div> Trống
+                </div>
+                <div className="text-sm font-black text-slate-800">{stats.available}</div>
+             </div>
+           </div>
+
+           {/* A subtle progress bar */}
+           <div className="w-full h-1 bg-slate-200/50 rounded-full mt-3 overflow-hidden relative z-10 flex">
+             <div className="h-full bg-emerald-500 transition-all duration-1000" style={{ width: `${stats.total > 0 ? (stats.rented / stats.total) * 100 : 0}%` }}></div>
+             <div className="h-full bg-amber-500 transition-all duration-1000" style={{ width: `${stats.total > 0 ? (stats.sold / stats.total) * 100 : 0}%` }}></div>
+           </div>
+           
+           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none"></div>
         </div>
       </section>
 
-      {/* Main Stats Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <StatCard 
-          label="Tổng căn hộ" 
-          value={stats.total} 
-          icon={Building2} 
-          color="text-blue-600" 
-          bgColor="bg-blue-50 dark:bg-blue-900/20" 
-          onClick={() => navigate('/properties')} 
-        />
-        <StatCard 
-          label="Chủ sở hữu" 
-          value={stats.owners} 
-          icon={Users} 
-          color="text-indigo-600" 
-          bgColor="bg-indigo-50 dark:bg-indigo-900/20" 
-          onClick={() => navigate('/properties?tab=owners')} 
-        />
-        <StatCard 
-          label="Đã cho thuê" 
-          value={stats.rented} 
-          icon={CheckCircle2} 
-          color="text-emerald-600" 
-          bgColor="bg-emerald-50 dark:bg-emerald-900/20" 
-          onClick={() => navigate('/properties')} 
-        />
-        <StatCard 
-          label="Căn hộ trống" 
-          value={stats.available} 
-          icon={Home} 
-          color="text-amber-600" 
-          bgColor="bg-amber-50 dark:bg-amber-900/20" 
-          onClick={() => navigate('/properties')} 
-        />
-        <div className="col-span-2">
-           <StatCard 
-            label="Cảnh báo quan trọng cần xử lý" 
-            value={stats.allAlerts.length} 
-            icon={ShieldAlert} 
-            color="text-rose-600" 
-            bgColor="bg-rose-50 dark:bg-rose-900/20" 
-            onClick={() => navigate('/notifications')} 
-            fullWidth
-          />
-        </div>
-      </div>
-
-      {/* Today's Tasks */}
-      {stats.todayTasks.length > 0 && (
-        <section onClick={() => navigate('/schedule')} className="bg-white dark:bg-slate-800 rounded-3xl p-5 border border-slate-100 dark:border-slate-700 flex items-center gap-4 active:scale-95 transition-all shadow-sm">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 flex items-center justify-center shrink-0">
-            <Calendar size={24} />
-          </div>
-          <div className="flex-1">
-            <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 italic">Lịch trình hôm nay</p>
-            <p className="text-sm font-bold mt-0.5 text-slate-800 dark:text-white">Bạn có {stats.todayTasks.length} việc cần hoàn tất</p>
-          </div>
-          <ArrowRight size={20} className="text-slate-300" />
-        </section>
-      )}
-
-      {/* Critical Alerts List */}
-      <section className="space-y-4 pb-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Thông báo quan trọng</h3>
-          <button onClick={() => navigate('/notifications')} className="text-[10px] font-bold text-blue-600 uppercase">Tất cả</button>
-        </div>
-
-        <div className="space-y-3">
-          {stats.allAlerts.length > 0 ? stats.allAlerts.slice(0, 4).map((alert) => (
-            <div 
-              key={alert.id} 
-              onClick={() => navigate(`/property/${alert.propertyId}`)}
-              className="flex items-center p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-50 dark:border-slate-700 shadow-sm active:scale-[0.98] transition-all"
-            >
-              <div className="mr-3 w-10 h-10 rounded-xl flex items-center justify-center bg-rose-50 dark:bg-rose-900/20 text-rose-600 shrink-0">
-                <AlertCircle size={18} />
+      {/* 2. Bento Grid Pastel Cards - Reduced Sizes */}
+      <section className="px-5 mt-4 grid grid-cols-2 gap-2.5">
+         <button title="Toàn bộ phòng" onClick={() => navigate('/properties')} className="bg-[#E6F0FA] rounded-2xl p-2.5 flex flex-col justify-between h-[82px] active:scale-[0.98] transition-all text-left">
+            <div className="flex justify-between items-start w-full">
+              <span className="text-[10px] font-bold text-slate-800 leading-tight">Toàn bộ<br/>Phòng</span>
+              <div className="w-6 h-6 rounded-full bg-white/60 flex items-center justify-center text-blue-600 shrink-0">
+                <Building2 size={12} strokeWidth={2.5} />
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-[11px] font-black text-slate-800 dark:text-white truncate uppercase tracking-tight">{alert.propertyName}</h4>
-                <p className="text-[10px] text-slate-500 truncate mt-1 font-medium">{alert.message}</p>
-              </div>
-              <ArrowUpRight size={16} className="text-slate-300 ml-2" />
             </div>
-          )) : (
-             <div className="py-12 bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-700 text-center flex flex-col items-center">
-                <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-3">
-                  <ClipboardCheck size={24} className="text-slate-200" />
+            <div className="flex justify-between items-end w-full">
+               <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Cập nhật lúc<br/>{new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}</span>
+               <span className="text-xl font-black text-slate-800 tracking-tight leading-none">{stats.total}</span>
+            </div>
+         </button>
+
+         <button title="Quản lý Chủ nhà" onClick={() => navigate('/properties?tab=owners')} className="bg-[#E2F5E9] rounded-2xl p-2.5 flex flex-col justify-between h-[82px] active:scale-[0.98] transition-all text-left">
+            <div className="flex justify-between items-start w-full">
+              <span className="text-[10px] font-bold text-slate-800 leading-tight">Quản lý<br/>Chủ nhà</span>
+              <div className="w-6 h-6 rounded-full bg-white/60 flex items-center justify-center text-emerald-600 shrink-0">
+                <Users size={12} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className="flex justify-between items-end w-full">
+               <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Đối tác<br/>cung cấp</span>
+               <span className="text-xl font-black text-slate-800 tracking-tight leading-none">{stats.owners}</span>
+            </div>
+         </button>
+
+         <button title="Phòng Đã thuê" onClick={() => navigate('/properties?status=Rented')} className="bg-[#FFEFEF] rounded-2xl p-2.5 flex flex-col justify-between h-[82px] active:scale-[0.98] transition-all text-left">
+            <div className="flex justify-between items-start w-full">
+              <span className="text-[10px] font-bold text-slate-800 leading-tight">Đang<br/>Nắm giữ</span>
+              <div className="w-6 h-6 rounded-full bg-white/60 flex items-center justify-center text-rose-500 shrink-0">
+                <CheckCircle2 size={12} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className="flex justify-between items-end w-full">
+               <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Tỷ lệ lấp<br/>đầy tốt</span>
+               <span className="text-xl font-black text-slate-800 tracking-tight leading-none">{stats.rented}</span>
+            </div>
+         </button>
+
+         <button title="Phòng Trống" onClick={() => navigate('/properties?status=Available')} className="bg-[#FFF4E0] rounded-2xl p-2.5 flex flex-col justify-between h-[82px] active:scale-[0.98] transition-all text-left">
+            <div className="flex justify-between items-start w-full">
+              <span className="text-[10px] font-bold text-slate-800 leading-tight">Phòng<br/>Trống</span>
+              <div className="w-6 h-6 rounded-full bg-white/60 flex items-center justify-center text-amber-500 shrink-0">
+                <Home size={12} strokeWidth={2.5} />
+              </div>
+            </div>
+            <div className="flex justify-between items-end w-full">
+               <span className="text-[7px] font-bold text-slate-500 uppercase tracking-wider leading-tight">Sẵn sàng<br/>cho thuê</span>
+               <span className="text-xl font-black text-slate-800 tracking-tight leading-none">{stats.available}</span>
+            </div>
+         </button>
+      </section>
+
+      {/* 4. Tin tức Thị trường (News Feed Carousel) */}
+      <section className="mt-6 pl-5 overflow-hidden">
+        <div className="flex items-center justify-between mb-2 pr-5">
+          <h3 className="text-[13px] font-bold text-slate-900 tracking-tight flex items-center gap-1.5">
+            <Newspaper size={14} className="text-blue-600" /> Bản tin Thị trường
+          </h3>
+        </div>
+
+        <div className="flex overflow-x-auto gap-2.5 pb-4 pr-5 custom-scrollbar snap-x">
+          {newsLoading ? (
+            // Skeleton Loading
+            [1, 2, 3].map((n) => (
+              <div key={n} className="w-[160px] shrink-0 bg-slate-50 rounded-[1.25rem] p-2 border border-slate-100 snap-center animate-pulse">
+                <div className="w-full h-[80px] bg-slate-200 rounded-xl mb-2"></div>
+                <div className="h-2.5 bg-slate-200 rounded-full w-full mb-1"></div>
+                <div className="h-2.5 bg-slate-200 rounded-full w-2/3"></div>
+              </div>
+            ))
+          ) : news.length > 0 ? (
+            // News Items
+            news.map((item, index) => (
+              <a 
+                key={index}
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={item.title}
+                className="w-[180px] shrink-0 bg-white rounded-[1.25rem] p-2 border border-slate-100 shadow-sm snap-center active:scale-95 transition-all text-left block"
+              >
+                <div className="w-full h-[90px] rounded-xl overflow-hidden bg-slate-100 mb-2 relative">
+                  <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
                 </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Danh sách trống</p>
+                <h4 className="text-[10px] font-bold text-slate-800 leading-snug line-clamp-2 mb-1 px-1">{item.title}</h4>
+                <p className="text-[8px] text-slate-400 font-semibold px-1">{new Date(item.pubDate).toLocaleDateString('vi-VN')}</p>
+              </a>
+            ))
+          ) : (
+             <div className="w-full py-6 mr-5 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Không có dữ liệu tin tức</p>
              </div>
           )}
         </div>
       </section>
 
-      {/* Copyright Footer */}
-      <footer className="py-8 text-center">
-        <p className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-[0.3em]">
-          RentMaster Pro • @2025 DHsystem
-        </p>
-      </footer>
+      {/* 3. Alerts - Flat UI list */}
+      <section className="px-5 mt-2">
+        <div className="flex items-center justify-between mb-1.5">
+          <h3 className="text-[13px] font-bold text-slate-900 tracking-tight">Cần xử lý ngay</h3>
+          <button title="Xem tất cả" onClick={() => navigate('/notifications')} className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-widest active:scale-95 transition-all">Tất cả</button>
+        </div>
+
+        <div className="space-y-0 text-left">
+          {stats.allAlerts.length > 0 ? stats.allAlerts.slice(0, 3).map((alert, idx) => (
+             <button title={alert.propertyName} key={alert.id} onClick={() => navigate(`/property/${alert.propertyId}`)} className={`w-full flex items-center py-3 group active:opacity-70 transition-opacity ${idx !== Math.min(stats.allAlerts.length, 3) - 1 ? 'border-b border-slate-50' : ''}`}>
+               <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-2.5 shrink-0 border ${
+                   alert.type.includes('ELECTRICITY') ? 'bg-amber-50 text-amber-500 border-amber-100' :
+                   alert.type.includes('WATER') ? 'bg-cyan-50 text-cyan-500 border-cyan-100' :
+                   alert.type.includes('WIFI') ? 'bg-indigo-50 text-indigo-500 border-indigo-100' :
+                   'bg-rose-50 text-rose-500 border-rose-100'
+               }`}>
+                  <AlertTriangle size={14} className="currentColor"/>
+               </div>
+               <div className="flex-1 text-left min-w-0 pr-2">
+                 <h4 className="text-[11px] font-bold text-slate-800 truncate">{alert.propertyName}</h4>
+                 <p className="text-[9px] text-slate-500 font-medium truncate mt-0.5">{alert.message}</p>
+               </div>
+               <ArrowRight size={14} className="text-slate-300 opacity-50 group-hover:opacity-100 transition-all"/>
+             </button>
+          )) : (
+             <div className="py-6 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-100 mt-2">
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tất cả đều ổn định</p>
+             </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 };
-
-const StatCard = ({ label, value, icon: Icon, color, bgColor, onClick, fullWidth }: any) => (
-  <button onClick={onClick} className={`bg-white dark:bg-slate-800 p-5 rounded-[2.5rem] border border-slate-100 dark:border-slate-700 shadow-sm text-left active:scale-[0.97] transition-all relative overflow-hidden group ${fullWidth ? 'w-full flex items-center gap-5' : ''}`}>
-    <div className={`${bgColor} ${color} w-11 h-11 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 shrink-0 ${!fullWidth ? 'mb-6' : ''}`}>
-      <Icon size={22} />
-    </div>
-    <div className="flex flex-col flex-1">
-      <div className={`${fullWidth ? 'text-xl' : 'text-3xl'} font-black text-slate-900 dark:text-white leading-none tracking-tighter italic`}>{value}</div>
-      <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mt-2 whitespace-nowrap">{label}</div>
-    </div>
-    <div className="absolute top-4 right-4 text-slate-200 dark:text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity">
-      <ArrowUpRight size={14} />
-    </div>
-  </button>
-);
 
 export default Dashboard;

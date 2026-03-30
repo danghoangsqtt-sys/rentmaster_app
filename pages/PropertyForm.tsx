@@ -6,19 +6,21 @@ import {
   FileText, CheckCircle, Home, Hotel, MapPin, 
   Phone, Hash, Info, ChevronRight, Sparkles, X, Copy,
   Calendar, CreditCard, Link as LinkIcon, Globe, ShieldCheck, Image as ImageIcon,
-  Users, UserPlus, Check, Trash2, Plus, Bell, RefreshCcw
+  Users, UserPlus, Check, Trash2, Plus, Bell, RefreshCcw, Zap
 } from 'lucide-react';
 import PhotoPicker from '../components/PhotoPicker';
 import { Property, Owner, Tenant, FamilyMember } from '../types';
-import { saveProperties, getStoredProperties, saveOwners, getStoredOwners } from '../data/mockData';
 import { StorageService } from '../services/StorageService';
+import { AppwriteService } from '../services/AppwriteService';
+import { useAppContext } from '../data/AppContext';
 
 const PropertyForm: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = !!id;
+  const { properties, owners, updateProperties, updateOwners } = useAppContext();
+  
   const [step, setStep] = useState(1);
-  const [existingOwners, setExistingOwners] = useState<Owner[]>([]);
   const [ownerMode, setOwnerMode] = useState<'existing' | 'new'>('new');
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -30,6 +32,7 @@ const PropertyForm: React.FC = () => {
     address: '',
     description: '',
     images: [] as string[],
+    videos: [] as string[],
     
     // Bước 2: Chủ nhà (Nếu thêm mới)
     ownerName: '',
@@ -40,12 +43,16 @@ const PropertyForm: React.FC = () => {
     // Bước 3: Dịch vụ & Tài chính
     electricityCode: '',
     electricityLink: '',
+    ownerElectricityPaymentDay: 1,
     waterCode: '',
     waterLink: '',
+    ownerWaterPaymentDay: 1,
     wifiCode: '',
     wifiLink: '',
+    ownerWifiPaymentDay: 1,
     
     // Bước 4: Khách thuê & Hợp đồng
+    status: 'Available' as Property['status'],
     hasTenant: false,
     tenantName: '',
     tenantIdCardImages: [] as string[],
@@ -73,12 +80,9 @@ const PropertyForm: React.FC = () => {
   const [formData, setFormData] = useState(initialFormData);
 
   useEffect(() => {
-    const loadData = async () => {
-      const [owners, props] = await Promise.all([getStoredOwners(), getStoredProperties()]);
-      setExistingOwners(owners);
-
+    const loadData = () => {
       if (isEdit) {
-        const p = props.find(prop => prop.id === id);
+        const p = properties.find((prop: Property) => prop.id === id);
         if (p) {
           setOwnerMode('existing');
           setSelectedOwnerId(p.ownerId);
@@ -89,13 +93,18 @@ const PropertyForm: React.FC = () => {
             type: p.type,
             address: p.address,
             description: p.description,
-            images: [p.imageUrl, ...p.gallery],
-            electricityCode: p.utilities.electricityCode,
-            electricityLink: p.utilities.electricityLink,
-            waterCode: p.utilities.waterCode,
-            waterLink: p.utilities.waterLink,
-            wifiCode: p.utilities.wifiCode,
-            wifiLink: p.utilities.wifiLink,
+            images: [p.imageUrl, ...p.gallery].filter(Boolean),
+            videos: p.videos || [],
+            electricityCode: p.utilities?.electricityCode || '',
+            electricityLink: p.utilities?.electricityLink || '',
+            ownerElectricityPaymentDay: p.utilities?.electricityPaymentDay || 1,
+            waterCode: p.utilities?.waterCode || '',
+            waterLink: p.utilities?.waterLink || '',
+            ownerWaterPaymentDay: p.utilities?.waterPaymentDay || 1,
+            wifiCode: p.utilities?.wifiCode || '',
+            wifiLink: p.utilities?.wifiLink || '',
+            ownerWifiPaymentDay: p.utilities?.wifiPaymentDay || 1,
+            status: p.status || (p.tenant ? 'Rented' : 'Available'),
             hasTenant: !!p.tenant,
             tenantName: p.tenant?.name || '',
             tenantIdCardImages: p.tenant?.idCardUrl ? [p.tenant.idCardUrl] : [],
@@ -124,7 +133,7 @@ const PropertyForm: React.FC = () => {
       }
     };
     loadData();
-  }, [id, isEdit]);
+  }, [id, isEdit, properties, owners]);
 
   const handleReset = () => {
     if (window.confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu đã nhập trên form này?")) {
@@ -156,7 +165,7 @@ const PropertyForm: React.FC = () => {
 
   const persistMedia = async (data: string, prefix: string) => {
     if (!data || data.startsWith('file://') || data.startsWith('http')) return data;
-    return await StorageService.saveMedia(data, prefix);
+    return await AppwriteService.uploadMedia(data, prefix);
   };
 
   const persistMediaArray = async (dataArr: string[], prefix: string) => {
@@ -170,6 +179,7 @@ const PropertyForm: React.FC = () => {
     try {
       // Persist all media from form before saving to JSON
       const persistedPropImages = await persistMediaArray(formData.images, 'prop');
+      const persistedPropVideos = await persistMediaArray(formData.videos, 'prop-video');
       const persistedOwnerIDImages = await persistMediaArray(formData.ownerIdCardImages, 'owner-id');
       const persistedTenantIDImages = await persistMediaArray(formData.tenantIdCardImages, 'tenant-id');
       const persistedPassportImages = await persistMediaArray(formData.passportImages, 'passport');
@@ -189,8 +199,7 @@ const PropertyForm: React.FC = () => {
           idCardFront: persistedOwnerIDImages[0] || '',
           idCardBack: persistedOwnerIDImages[1] || ''
         };
-        const storedOwners = await getStoredOwners();
-        await saveOwners([...storedOwners, newOwner]);
+        await updateOwners([...owners, newOwner]);
       }
 
       let tenant: Tenant | undefined = undefined;
@@ -222,7 +231,6 @@ const PropertyForm: React.FC = () => {
         };
       }
 
-      const storedProps = await getStoredProperties();
       const newProp: Property = {
         id: isEdit ? id! : 'p' + Date.now(),
         name: formData.name,
@@ -232,8 +240,9 @@ const PropertyForm: React.FC = () => {
         structure: formData.address,
         imageUrl: persistedPropImages[0] || '',
         gallery: persistedPropImages.slice(1),
+        videos: persistedPropVideos,
         ownerId: ownerId || '',
-        status: formData.hasTenant ? 'Rented' : 'Available',
+        status: formData.status,
         condition: 'Normal',
         totalAssetValue: 0,
         constructionYear: new Date().getFullYear(),
@@ -243,18 +252,21 @@ const PropertyForm: React.FC = () => {
         utilities: {
           electricityCode: formData.electricityCode,
           electricityLink: formData.electricityLink,
+          electricityPaymentDay: formData.ownerElectricityPaymentDay,
           waterCode: formData.waterCode,
           waterLink: formData.waterLink,
+          waterPaymentDay: formData.ownerWaterPaymentDay,
           wifiCode: formData.wifiCode,
-          wifiLink: formData.wifiLink
+          wifiLink: formData.wifiLink,
+          wifiPaymentDay: formData.ownerWifiPaymentDay
         }
       };
       
       const updatedProps = isEdit 
-        ? storedProps.map(p => p.id === id ? newProp : p)
-        : [...storedProps, newProp];
+        ? properties.map(p => p.id === id ? newProp : p)
+        : [...properties, newProp];
 
-      await saveProperties(updatedProps);
+      await updateProperties(updatedProps);
       navigate(isEdit ? `/property/${id}` : '/properties');
     } catch (error) {
       console.error("Save error", error);
@@ -264,50 +276,50 @@ const PropertyForm: React.FC = () => {
     }
   };
 
-  const inputClass = "w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-sm font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/5 transition-all mb-4 shadow-sm";
-  const labelClass = "text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2 mb-2 flex items-center gap-2";
+  const inputClass = "w-full bg-slate-50 border border-slate-200 rounded-[14px] p-3 text-[13px] font-bold text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all mb-3 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]";
+  const labelClass = "text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-1.5 flex items-center gap-1.5";
 
   return (
-    <div className="absolute inset-0 bg-slate-50 z-[100] flex flex-col font-sans overflow-hidden">
+    <div className="absolute inset-0 bg-white z-[100] flex flex-col font-sans overflow-hidden">
       {/* Loading Overlay */}
       {isSaving && (
-        <div className="absolute inset-0 z-[1000] bg-black/40 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-white p-8 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-2xl">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-xs font-black uppercase tracking-widest text-slate-600">Đang lưu hồ sơ...</p>
+        <div className="absolute inset-0 z-[1000] bg-white/60 backdrop-blur-md flex items-center justify-center">
+          <div className="bg-white p-8 rounded-3xl flex flex-col items-center gap-4 shadow-2xl border border-slate-100">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Đang lưu hồ sơ...</p>
           </div>
         </div>
       )}
 
       {/* Header */}
-      <div className="bg-white pt-safe pb-6 px-6 border-b border-slate-100 shadow-sm shrink-0">
-        <div className="flex items-center justify-between mb-6 pt-6">
-          <button onClick={() => step > 1 ? prevStep() : navigate(-1)} className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 active:scale-90">
-            <ArrowLeft size={20} />
+      <div className="bg-white/95 backdrop-blur-xl pt-safe pb-3 px-4 border-b border-slate-100 shadow-sm shrink-0 z-50 sticky top-0">
+        <div className="flex items-center justify-between mb-3 pt-3">
+          <button title="Quay lại" onClick={() => step > 1 ? prevStep() : navigate(-1)} className="w-8 h-8 bg-slate-50 border border-slate-100 rounded-[10px] flex items-center justify-center text-slate-500 active:scale-90">
+            <ArrowLeft size={16} />
           </button>
           <div className="text-center">
-            <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter italic">{isEdit ? 'Chỉnh sửa BĐS' : 'Hồ sơ BĐS'}</h2>
-            <p className="text-[10px] font-bold text-blue-600 uppercase">Bước {step} / 4</p>
+            <h2 className="text-[13px] font-black text-slate-800 uppercase tracking-tight">{isEdit ? 'Sửa BĐS' : 'Hồ sơ BĐS'}</h2>
+            <p className="text-[10px] font-bold text-blue-600">Bước {step} / 4</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {!isEdit && (
-              <button onClick={handleReset} className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 active:scale-90" title="Xóa toàn bộ">
-                <RefreshCcw size={18} />
+              <button title="Khôi phục mặc định" onClick={handleReset} className="w-8 h-8 bg-slate-50 border border-slate-100 rounded-[10px] flex items-center justify-center text-slate-500 active:scale-90">
+                <RefreshCcw size={14} />
               </button>
             )}
-            <button onClick={() => navigate(-1)} className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-500">
-              <X size={20} />
+            <button title="Đóng" onClick={() => navigate(-1)} className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-[10px] flex items-center justify-center text-rose-500 active:scale-90">
+              <X size={16} />
             </button>
           </div>
         </div>
-        <div className="flex gap-2 px-2">
+        <div className="flex gap-1.5 px-1">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${i <= step ? 'bg-blue-600' : 'bg-slate-100'}`}></div>
           ))}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-40">
+      <div className="flex-1 overflow-y-auto p-4 space-y-5 pb-32">
         {step === 1 && (
           <div className="animate-in fade-in slide-in-from-right-10 duration-500 space-y-6">
             <section>
@@ -319,49 +331,50 @@ const PropertyForm: React.FC = () => {
               <textarea className={`${inputClass} h-32`} placeholder="Diện tích, số phòng ngủ, danh sách nội thất chính..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
             </section>
             <PhotoPicker label="ẢNH THỰC TẾ (ẢNH ĐẦU LÀM ĐẠI DIỆN)" multiple images={formData.images} onChange={imgs => setFormData({...formData, images: imgs})} />
+            <PhotoPicker label="VIDEO THỰC TẾ (QUAY THEO CHIỀU DỌC)" accept="video/*" multiple images={formData.videos} onChange={imgs => setFormData({...formData, videos: imgs})} />
           </div>
         )}
 
         {step === 2 && (
-          <div className="animate-in fade-in slide-in-from-right-10 duration-500 space-y-6">
-            <div className="flex p-1 bg-slate-100 rounded-2xl mb-4">
+          <div className="animate-in fade-in slide-in-from-right-10 duration-500 space-y-4">
+            <div className="flex p-0.5 bg-slate-100 rounded-[12px] mb-3 border border-slate-100">
               <button 
                 onClick={() => setOwnerMode('existing')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${ownerMode === 'existing' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[10px] font-black uppercase transition-all ${ownerMode === 'existing' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
               >
-                <Users size={14} /> Chọn chủ nhà đã có
+                <Users size={12} /> Chọn có sẵn
               </button>
               <button 
                 onClick={() => setOwnerMode('new')}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${ownerMode === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-[10px] text-[10px] font-black uppercase transition-all ${ownerMode === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
               >
-                <UserPlus size={14} /> Thêm chủ nhà mới
+                <UserPlus size={12} /> Thêm mới
               </button>
             </div>
 
             {ownerMode === 'existing' ? (
-              <div className="space-y-3">
-                {existingOwners.length > 0 ? (
-                  existingOwners.map(owner => (
+              <div className="space-y-2">
+                {owners.length > 0 ? (
+                  owners.map(owner => (
                     <button 
                       key={owner.id}
                       onClick={() => setSelectedOwnerId(owner.id)}
-                      className={`w-full p-4 rounded-2xl border-2 text-left flex items-center justify-between transition-all ${selectedOwnerId === owner.id ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-white'}`}
+                      className={`w-full p-3 rounded-[16px] border-2 text-left flex items-center justify-between transition-all shadow-[0_2px_8px_rgba(0,0,0,0.02)] ${selectedOwnerId === owner.id ? 'border-blue-600 bg-blue-50/50' : 'border-slate-100 bg-slate-50/80'}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-100">
                           {owner.avatarUrl ? (
-                            <img src={StorageService.getDisplayUrl(owner.avatarUrl)} className="w-full h-full object-cover" />
+                            <img src={StorageService.getDisplayUrl(owner.avatarUrl)} className="w-full h-full object-cover" alt={owner.name} />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-slate-300"><User size={20} /></div>
                           )}
                         </div>
                         <div>
-                          <p className="text-sm font-black text-slate-800 uppercase italic">{owner.name}</p>
-                          <p className="text-[10px] text-slate-400 font-bold">{owner.phones[0]}</p>
+                          <p className="text-sm font-bold text-slate-800 uppercase">{owner.name}</p>
+                          <p className="text-[11px] text-slate-500 font-medium">{owner.phones[0]}</p>
                         </div>
                       </div>
-                      {selectedOwnerId === owner.id && <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md"><Check size={14} /></div>}
+                      {selectedOwnerId === owner.id && <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-sm"><Check size={12} /></div>}
                     </button>
                   ))
                 ) : (
@@ -387,29 +400,47 @@ const PropertyForm: React.FC = () => {
         )}
 
         {step === 3 && (
-          <div className="animate-in fade-in slide-in-from-right-10 duration-500 space-y-6">
-            <div className="bg-blue-600 rounded-3xl p-5 text-white shadow-lg mb-4">
-              <h3 className="font-black uppercase italic text-sm flex items-center gap-2"><CreditCard size={18}/> Dịch vụ & Link thanh toán</h3>
-              <p className="text-[10px] opacity-80 mt-1 font-bold">Lưu thông tin để thanh toán nhanh hàng tháng.</p>
+          <div className="animate-in fade-in slide-in-from-right-10 duration-500 space-y-4">
+            <div className="bg-blue-600 rounded-[20px] p-4 text-white shadow-md mb-2">
+              <h3 className="font-black uppercase italic text-[12px] flex items-center gap-1.5"><CreditCard size={16}/> Dịch vụ & Liên kết</h3>
+              <p className="text-[9px] opacity-80 mt-1 font-bold">Lưu thông tin thanh toán cho khách trọ.</p>
             </div>
             
-            <section className="space-y-4">
-              <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <label className={labelClass}>Tiền Điện (Mã KH & Link)</label>
-                <input className={inputClass} placeholder="Mã KH Điện..." value={formData.electricityCode} onChange={e => setFormData({...formData, electricityCode: e.target.value})} />
-                <input className={inputClass} placeholder="Link thanh toán (EVN/ZaloPay...)" value={formData.electricityLink} onChange={e => setFormData({...formData, electricityLink: e.target.value})} />
+            <section className="space-y-3">
+              <div className="p-3.5 bg-slate-50/80 rounded-[16px] border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                <label className={labelClass}><Zap size={10}/> Điện (Mã KH & Link)</label>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <input className={`${inputClass} !mb-0`} placeholder="Mã KH Điện..." value={formData.electricityCode} onChange={e => setFormData({...formData, electricityCode: e.target.value})} />
+                  <div className="flex bg-white border border-slate-200 rounded-[14px] items-center px-3 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                    <span className="text-[10px] font-bold text-slate-400 mr-2 whitespace-nowrap">Chốt ngày</span>
+                    <input title="Ngày chốt điện" type="number" min="1" max="31" className="bg-transparent border-none outline-none text-[12px] font-bold text-blue-600 w-full" value={formData.ownerElectricityPaymentDay} onChange={(e) => setFormData({...formData, ownerElectricityPaymentDay: parseInt(e.target.value) || 1})} />
+                  </div>
+                </div>
+                <input className={`${inputClass} !mb-0`} placeholder="Link thanh toán..." value={formData.electricityLink} onChange={e => setFormData({...formData, electricityLink: e.target.value})} />
               </div>
 
-              <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <label className={labelClass}>Tiền Nước (Mã KH & Link)</label>
-                <input className={inputClass} placeholder="Mã KH Nước..." value={formData.waterCode} onChange={e => setFormData({...formData, waterCode: e.target.value})} />
-                <input className={inputClass} placeholder="Link thanh toán nước..." value={formData.waterLink} onChange={e => setFormData({...formData, waterLink: e.target.value})} />
+              <div className="p-3.5 bg-slate-50/80 rounded-[16px] border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                <label className={labelClass}><Globe size={10}/> Nước (Mã KH & Link)</label>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <input className={`${inputClass} !mb-0`} placeholder="Mã KH Nước..." value={formData.waterCode} onChange={e => setFormData({...formData, waterCode: e.target.value})} />
+                  <div className="flex bg-white border border-slate-200 rounded-[14px] items-center px-3 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                    <span className="text-[10px] font-bold text-slate-400 mr-2 whitespace-nowrap">Chốt ngày</span>
+                    <input title="Ngày chốt nước" type="number" min="1" max="31" className="bg-transparent border-none outline-none text-[12px] font-bold text-blue-600 w-full" value={formData.ownerWaterPaymentDay} onChange={(e) => setFormData({...formData, ownerWaterPaymentDay: parseInt(e.target.value) || 1})} />
+                  </div>
+                </div>
+                <input className={`${inputClass} !mb-0`} placeholder="Link thanh toán..." value={formData.waterLink} onChange={e => setFormData({...formData, waterLink: e.target.value})} />
               </div>
 
-              <div className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                <label className={labelClass}>Internet/Wifi (Mã & Link)</label>
-                <input className={inputClass} placeholder="Mã thuê bao..." value={formData.wifiCode} onChange={e => setFormData({...formData, wifiCode: e.target.value})} />
-                <input className={inputClass} placeholder="Link thanh toán cước..." value={formData.wifiLink} onChange={e => setFormData({...formData, wifiLink: e.target.value})} />
+              <div className="p-3.5 bg-slate-50/80 rounded-[16px] border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+                <label className={labelClass}><LinkIcon size={10}/> Internet (Mã thuê bao & Link)</label>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <input className={`${inputClass} !mb-0`} placeholder="Mã thuê bao wifi..." value={formData.wifiCode} onChange={e => setFormData({...formData, wifiCode: e.target.value})} />
+                  <div className="flex bg-white border border-slate-200 rounded-[14px] items-center px-3 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                    <span className="text-[10px] font-bold text-slate-400 mr-2 whitespace-nowrap">Chốt ngày</span>
+                    <input title="Ngày chốt Internet" type="number" min="1" max="31" className="bg-transparent border-none outline-none text-[12px] font-bold text-blue-600 w-full" value={formData.ownerWifiPaymentDay} onChange={(e) => setFormData({...formData, ownerWifiPaymentDay: parseInt(e.target.value) || 1})} />
+                  </div>
+                </div>
+                <input className={`${inputClass} !mb-0`} placeholder="Link thanh toán cước..." value={formData.wifiLink} onChange={e => setFormData({...formData, wifiLink: e.target.value})} />
               </div>
             </section>
           </div>
@@ -417,20 +448,23 @@ const PropertyForm: React.FC = () => {
 
         {step === 4 && (
           <div className="animate-in fade-in slide-in-from-right-10 duration-500 space-y-6">
-            <button 
-              onClick={() => setFormData({...formData, hasTenant: !formData.hasTenant})}
-              className={`w-full p-4 rounded-2xl border-2 flex items-center justify-between transition-all ${formData.hasTenant ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-white'}`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl ${formData.hasTenant ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                  <User size={20} />
-                </div>
-                <span className="text-sm font-black uppercase">Có khách thuê hiện tại</span>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${formData.hasTenant ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200'}`}>
-                {formData.hasTenant && <CheckCircle size={14} />}
-              </div>
-            </button>
+            <div className="space-y-2.5">
+               <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1 flex items-center gap-1.5"><Building2 size={12} className="text-blue-500"/> Trạng thái Bất động sản</label>
+               <div className="flex bg-slate-100/80 p-1.5 rounded-[16px] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
+                 {(['Available', 'Rented', 'Sold'] as const).map(s => (
+                   <button
+                     key={s}
+                     onClick={() => setFormData({...formData, status: s, hasTenant: s === 'Rented'})}
+                     className={`flex-1 py-3 px-2 rounded-[12px] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${formData.status === s ? 
+                       (s === 'Rented' ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' : 
+                        s === 'Sold' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 
+                        'bg-white text-slate-700 shadow-sm border border-slate-200/50') : 'text-slate-400 hover:text-slate-600'}`}
+                   >
+                     {s === 'Rented' ? <><User size={14}/> Đã thuê</> : s === 'Available' ? <><Home size={14}/> Trống</> : <><Sparkles size={14}/> Đã bán</>}
+                   </button>
+                 ))}
+               </div>
+            </div>
 
             {formData.hasTenant && (
               <div className="space-y-6 animate-in zoom-in-95">
@@ -443,23 +477,36 @@ const PropertyForm: React.FC = () => {
                     <label htmlFor="foreigner" className="text-xs font-black uppercase text-slate-600">Khách nước ngoài</label>
                   </div>
 
-                  <PhotoPicker label="CCCD / HỘ CHIẾU KHÁCH" multiple images={formData.tenantIdCardImages} onChange={imgs => setFormData({...formData, tenantIdCardImages: imgs})} />
+                  <PhotoPicker label="ẢNH CCCD / CMND" multiple images={formData.tenantIdCardImages} onChange={imgs => setFormData({...formData, tenantIdCardImages: imgs})} />
                   
                   {formData.isForeigner && (
-                    <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-4">
-                      <label className={labelClass}><Globe size={12}/> Thời hạn Visa (Cảnh báo tự động)</label>
-                      <input type="date" className={inputClass} value={formData.visaExpiryDate} onChange={e => setFormData({...formData, visaExpiryDate: e.target.value})} />
-                      <PhotoPicker label="ẢNH VISA" images={formData.visaImages} onChange={imgs => setFormData({...formData, visaImages: imgs})} />
+                    <div className="mt-6 p-5 bg-amber-50/50 rounded-2xl border border-amber-100 space-y-5">
+                      <div className="flex items-center gap-2 mb-2">
+                         <Globe size={16} className="text-amber-600"/>
+                         <h4 className="text-[12px] font-black uppercase text-amber-800 tracking-widest">Hồ sơ khách nước ngoài</h4>
+                      </div>
+                      
+                      <div className="bg-white p-4 rounded-xl border border-amber-100/50 shadow-sm">
+                         <PhotoPicker label="HỘ CHIẾU (PASSPORT)" multiple images={formData.passportImages} onChange={imgs => setFormData({...formData, passportImages: imgs})} />
+                      </div>
+
+                      <div className="bg-white p-4 rounded-xl border border-amber-100/50 shadow-sm space-y-4">
+                         <div>
+                            <label htmlFor="visaExpiry" className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 block">Thời hạn Visa (Bắt buộc)</label>
+                            <input id="visaExpiry" name="visaExpiryDate" type="date" title="Ngày hết hạn visa" className={inputClass} value={formData.visaExpiryDate} onChange={e => setFormData({...formData, visaExpiryDate: e.target.value})} />
+                         </div>
+                         <PhotoPicker label="ẢNH CHỤP VISA" images={formData.visaImages} onChange={imgs => setFormData({...formData, visaImages: imgs})} />
+                      </div>
                     </div>
                   )}
                 </section>
 
-                <section className="bg-emerald-50/50 p-5 rounded-3xl border border-emerald-100 space-y-4">
+                <section className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 space-y-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2">
-                      <Users size={14}/> Thành viên gia đình / Cùng ở
+                    <h4 className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest flex items-center gap-2">
+                      <Users size={14}/> Thành viên gia đình
                     </h4>
-                    <button onClick={() => setFormData({...formData, familyMembers: [...formData.familyMembers, { name: '', relationship: '', idCardOrPassport: '' }]})} className="p-2 bg-emerald-600 text-white rounded-xl shadow-sm active:scale-90 transition-transform">
+                    <button title="Thêm thành viên" onClick={() => setFormData({...formData, familyMembers: [...formData.familyMembers, { name: '', relationship: '', idCardOrPassport: '' }]})} className="p-1.5 bg-emerald-600 text-white rounded-lg shadow-sm active:scale-90 transition-transform">
                       <Plus size={14} />
                     </button>
                   </div>
@@ -467,8 +514,8 @@ const PropertyForm: React.FC = () => {
                   {formData.familyMembers.length > 0 ? (
                     <div className="space-y-4">
                       {formData.familyMembers.map((member, idx) => (
-                        <div key={idx} className="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm relative animate-in slide-in-from-left-4">
-                          <button onClick={() => setFormData({...formData, familyMembers: formData.familyMembers.filter((_, i) => i !== idx)})} className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform z-10">
+                        <div key={idx} className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm relative animate-in slide-in-from-left-4">
+                          <button title="Xóa thành viên" onClick={() => setFormData({...formData, familyMembers: formData.familyMembers.filter((_, i) => i !== idx)})} className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md active:scale-90 transition-transform z-10">
                             <Trash2 size={12} />
                           </button>
                           
@@ -508,48 +555,48 @@ const PropertyForm: React.FC = () => {
                   )}
                 </section>
 
-                <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Calendar size={14}/> Chu kỳ thanh toán</h4>
+                <section className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2"><Calendar size={14}/> Chu kỳ thanh toán</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={labelClass}>Ngày thu Tiền Nhà</label>
-                      <input type="number" min="1" max="31" className={inputClass} value={formData.rentPaymentDay} onChange={e => setFormData({...formData, rentPaymentDay: parseInt(e.target.value)})} />
+                      <label htmlFor="rentPaymentDay" className={labelClass}>Ngày thu Tiền Nhà</label>
+                      <input id="rentPaymentDay" title="Ngày thu Tiền Nhà" type="number" min="1" max="31" className={inputClass} value={formData.rentPaymentDay} onChange={e => setFormData({...formData, rentPaymentDay: parseInt(e.target.value)})} />
                     </div>
                     <div>
-                      <label className={labelClass}>Giá thuê (VNĐ)</label>
-                      <input type="number" className={inputClass} placeholder="10.000.000" value={formData.rentAmount} onChange={e => setFormData({...formData, rentAmount: parseInt(e.target.value)})} />
+                      <label htmlFor="rentAmount" className={labelClass}>Giá thuê (VNĐ)</label>
+                      <input id="rentAmount" title="Giá thuê (VNĐ)" type="number" className={inputClass} placeholder="10.000.000" value={formData.rentAmount} onChange={e => setFormData({...formData, rentAmount: parseInt(e.target.value)})} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className={labelClass}>Ngày thu Tiền Điện</label>
-                      <input type="number" min="1" max="31" className={inputClass} value={formData.electricityPaymentDay} onChange={e => setFormData({...formData, electricityPaymentDay: parseInt(e.target.value)})} />
+                      <label htmlFor="electricityPaymentDay" className={labelClass}>Ngày thu Tiền Điện</label>
+                      <input id="electricityPaymentDay" title="Ngày thu Tiền Điện" type="number" min="1" max="31" className={inputClass} value={formData.electricityPaymentDay} onChange={e => setFormData({...formData, electricityPaymentDay: parseInt(e.target.value)})} />
                     </div>
                     <div>
-                      <label className={labelClass}>Ngày thu Tiền Nước</label>
-                      <input type="number" min="1" max="31" className={inputClass} value={formData.waterPaymentDay} onChange={e => setFormData({...formData, waterPaymentDay: parseInt(e.target.value)})} />
+                      <label htmlFor="waterPaymentDay" className={labelClass}>Ngày thu Tiền Nước</label>
+                      <input id="waterPaymentDay" title="Ngày thu Tiền Nước" type="number" min="1" max="31" className={inputClass} value={formData.waterPaymentDay} onChange={e => setFormData({...formData, waterPaymentDay: parseInt(e.target.value)})} />
                     </div>
                   </div>
                 </section>
 
-                <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+                <section className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-6">
                   <div>
-                    <label className={labelClass}><Calendar size={12}/> Ngày Check-in & Hết hạn hợp đồng</label>
+                    <label htmlFor="checkin" className={labelClass}><Calendar size={12}/> Ngày Check-in & Hết hạn HD</label>
                     <div className="grid grid-cols-2 gap-4">
-                      <input type="date" className={inputClass} value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
-                      <input type="date" className={inputClass} value={formData.contractExpiryDate} onChange={e => setFormData({...formData, contractExpiryDate: e.target.value})} />
+                      <input id="checkin" title="Ngày check-in" type="date" className={inputClass} value={formData.checkInDate} onChange={e => setFormData({...formData, checkInDate: e.target.value})} />
+                      <input id="contractExpiry" title="Ngày hết hạn hợp đồng" type="date" className={inputClass} value={formData.contractExpiryDate} onChange={e => setFormData({...formData, contractExpiryDate: e.target.value})} />
                     </div>
                   </div>
                 </section>
 
-                <section className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-2"><ImageIcon size={14}/> Hình ảnh hợp đồng thuê</h4>
+                <section className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-2"><ImageIcon size={14}/> Hình ảnh hợp đồng thuê</h4>
                   <PhotoPicker label="ẢNH CHỤP HỢP ĐỒNG (BẮT BUỘC)" multiple images={formData.contractImages} onChange={imgs => setFormData({...formData, contractImages: imgs})} />
                 </section>
 
-                <section className="p-5 bg-emerald-50 rounded-3xl border border-emerald-100">
-                  <h4 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4"><ShieldCheck size={14}/> Đăng ký lưu trú (Bắt buộc)</h4>
-                  <PhotoPicker label="ẢNH XÁC NHẬN LƯU TRÚ / TẠM TRÚ" images={formData.residencyImages} onChange={imgs => setFormData({...formData, residencyImages: imgs})} />
+                <section className="p-5 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm">
+                  <h4 className="text-[11px] font-bold text-emerald-700 uppercase tracking-widest flex items-center gap-2 mb-4"><ShieldCheck size={14}/> Đăng ký lưu trú (Bắt buộc)</h4>
+                  <PhotoPicker label="ẢNH XÁC NHẬN LƯU TRÚ" images={formData.residencyImages} onChange={imgs => setFormData({...formData, residencyImages: imgs})} />
                 </section>
               </div>
             )}
@@ -557,12 +604,12 @@ const PropertyForm: React.FC = () => {
         )}
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-100 flex gap-4 z-[110] pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-xl">
-        <button onClick={() => step > 1 ? prevStep() : navigate(-1)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl text-[11px] font-black uppercase">QUAY LẠI</button>
+      <div className="absolute bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-xl border-t border-slate-100 flex gap-2.5 z-[110] pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
+        <button title="Quay lại" onClick={() => step > 1 ? prevStep() : navigate(-1)} className="flex-1 py-3 bg-slate-50 border border-slate-100 text-slate-500 rounded-[12px] text-[11px] font-bold uppercase active:scale-95 transition-all">Quay Lại</button>
         {step < 4 ? (
-          <button onClick={nextStep} className="flex-[2] py-4 bg-blue-600 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3">TIẾP THEO <ChevronRight size={16} /></button>
+          <button title="Tiếp theo" onClick={nextStep} className="flex-[2] py-3 bg-blue-600 text-white rounded-[12px] text-[11px] font-bold uppercase flex items-center justify-center gap-2 shadow-sm shadow-blue-200 active:scale-95 transition-all">Tiếp Theo <ChevronRight size={14} /></button>
         ) : (
-          <button onClick={handleSubmit} disabled={isSaving} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase flex items-center justify-center gap-3 disabled:opacity-50">{isEdit ? 'CẬP NHẬT' : 'HOÀN TẤT'} <Save size={16} /></button>
+          <button title="Lưu" onClick={handleSubmit} disabled={isSaving} className="flex-[2] py-3 bg-indigo-600 text-white rounded-[12px] text-[11px] font-bold uppercase flex items-center justify-center gap-2 shadow-sm shadow-indigo-200 active:scale-95 transition-all disabled:opacity-50">{isEdit ? 'Cập Nhật' : 'Hoàn Tất'} <Save size={14} /></button>
         )}
       </div>
     </div>

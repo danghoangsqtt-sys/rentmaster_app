@@ -10,6 +10,23 @@ export interface Owner {
   managementStartDate: string;
 }
 
+export interface UserProfile {
+  name: string;
+  photo: string;
+  phone: string;
+  email: string;
+  bio: string;
+}
+
+export interface UserAccount {
+  email: string;
+  username: string;
+  password?: string;
+  name: string;
+  photo?: string;
+  isPro: boolean;
+}
+
 export interface Asset {
   id: string;
   name: string;
@@ -57,11 +74,16 @@ export interface Tenant {
 
 export interface Utilities {
   electricityCode: string;
-  waterCode: string;
-  wifiCode: string;
   electricityLink: string;
+  electricityPaymentDay?: number;
+  
+  waterCode: string;
   waterLink: string;
+  waterPaymentDay?: number;
+  
+  wifiCode: string;
   wifiLink: string;
+  wifiPaymentDay?: number;
 }
 
 export interface Property {
@@ -73,7 +95,7 @@ export interface Property {
   structure: string; 
   condition: 'New' | 'Normal' | 'Old'; 
   totalAssetValue: number;
-  status: 'Rented' | 'Available';
+  status: 'Rented' | 'Available' | 'Sold';
   imageUrl: string; 
   gallery: string[]; 
   videos?: string[]; 
@@ -83,6 +105,8 @@ export interface Property {
   assets: Asset[];
   tenant?: Tenant;
   utilities: Utilities;
+  rating?: number; // Đánh giá chất lượng BĐS từ 1-10
+  propertyNotes?: string; // Ghi chú tình trạng BĐS (pháp lý, hư hỏng, bảo trì...)
 }
 
 export type EventType = 'Collection' | 'Maintenance' | 'Viewing' | 'Contract' | 'Other';
@@ -111,7 +135,10 @@ export type NotificationType =
   | 'MANAGEMENT_DUE'
   | 'WIFI_DUE'
   | 'UTILITY_DUE' 
-  | 'VISA_EXPIRY';
+  | 'VISA_EXPIRY'
+  | 'OWNER_ELECTRICITY_DUE'
+  | 'OWNER_WATER_DUE'
+  | 'OWNER_WIFI_DUE';
 
 export interface AppNotification {
   id: string;

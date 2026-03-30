@@ -1,6 +1,6 @@
-
-import { Property, Owner, ScheduleEvent } from '../types';
+import { Property, Owner, ScheduleEvent, UserProfile, UserAccount } from '../types';
 import { StorageService } from '../services/StorageService';
+import { AppwriteService } from '../services/AppwriteService';
 
 const PROPERTIES_FILE = 'properties';
 const SCHEDULE_FILE = 'schedule';
@@ -8,32 +8,14 @@ const OWNERS_FILE = 'owners';
 const PROFILE_FILE = 'profile';
 const USERS_FILE = 'users';
 
-export interface UserProfile {
-  name: string;
-  photo: string;
-  phone: string;
-  email: string;
-  bio: string;
-}
 
-// User account for authentication
-export interface UserAccount {
-  email: string;
-  username: string;
-  password?: string;
-  name: string;
-  photo?: string;
-  isPro: boolean;
-}
-
-// Memory Cache
 let _properties: Property[] | null = null;
 let _owners: Owner[] | null = null;
 let _schedule: ScheduleEvent[] | null = null;
 let _profile: UserProfile | null = null;
 let _users: UserAccount[] | null = null;
 
-const seedInitialData = async () => {
+export const seedInitialData = async () => {
   const existingProps = await StorageService.readJson(PROPERTIES_FILE);
   if (!existingProps || existingProps.length === 0) {
     const mockOwners: Owner[] = [
@@ -92,14 +74,14 @@ const seedInitialData = async () => {
           electricityLink: 'https://zalopay.vn/evn',
           waterLink: 'https://sawaco.com.vn',
           wifiLink: 'https://fpt.vn/pay'
-        }
+        },
+        rating: 9,
+        propertyNotes: 'Máy giặt cần bảo trì vào tháng sau.'
       }
     ];
 
     await StorageService.saveJson(OWNERS_FILE, mockOwners);
     await StorageService.saveJson(PROPERTIES_FILE, mockProperties);
-    _owners = mockOwners;
-    _properties = mockProperties;
   }
 
   // Seed default admin user if none exists
@@ -114,79 +96,55 @@ const seedInitialData = async () => {
       isPro: true
     };
     await StorageService.saveJson(USERS_FILE, [adminUser]);
-    _users = [adminUser];
   }
 };
 
-seedInitialData();
-
+// Functions to read from storage directly
 export const getStoredProfile = async (): Promise<UserProfile> => {
-  if (_profile) return _profile;
   const profile = await StorageService.readJson(PROFILE_FILE);
-  _profile = profile || {
+  return profile || {
     name: 'Quản lý viên',
     photo: 'https://i.pravatar.cc/150?u=manager',
     phone: '',
     email: '',
     bio: 'Quản lý bất động sản chuyên nghiệp.'
   };
-  return _profile;
 };
 
 export const saveProfile = async (profile: UserProfile) => {
-  _profile = profile;
   await StorageService.saveJson(PROFILE_FILE, profile);
 };
 
 export const getStoredOwners = async (): Promise<Owner[]> => {
-  if (_owners) return _owners;
-  const owners = await StorageService.readJson(OWNERS_FILE);
-  _owners = owners || [];
-  return _owners!;
+  return await AppwriteService.getOwners();
 };
 
 export const saveOwners = async (owners: Owner[]) => {
-  _owners = owners;
-  await StorageService.saveJson(OWNERS_FILE, owners);
+  await AppwriteService.saveOwners(owners);
 };
 
 export const getStoredProperties = async (): Promise<Property[]> => {
-  if (_properties) return _properties;
-  const props = await StorageService.readJson(PROPERTIES_FILE);
-  _properties = props || [];
-  return _properties!;
+  return await AppwriteService.getProperties();
 };
 
 export const saveProperties = async (properties: Property[]) => {
-  _properties = properties;
-  await StorageService.saveJson(PROPERTIES_FILE, properties);
+  await AppwriteService.saveProperties(properties);
 };
 
 export const getStoredSchedule = async (): Promise<ScheduleEvent[]> => {
-  if (_schedule) return _schedule;
-  const schedule = await StorageService.readJson(SCHEDULE_FILE);
-  _schedule = schedule || [];
-  return _schedule!;
+  return await AppwriteService.getSchedules();
 };
 
 export const saveSchedule = async (events: ScheduleEvent[]) => {
-  _schedule = events;
-  await StorageService.saveJson(SCHEDULE_FILE, events);
+  await AppwriteService.saveSchedules(events);
 };
 
-/**
- * Added missing functions for user and authentication management
- */
-
 export const getStoredUsers = async (): Promise<UserAccount[]> => {
-  if (_users) return _users;
   const users = await StorageService.readJson(USERS_FILE);
-  _users = users || [];
-  return _users!;
+  return users || [];
 };
 
 export const saveUsersList = async (users: UserAccount[]) => {
-  _users = users;
   await StorageService.saveJson(USERS_FILE, users);
 };
 

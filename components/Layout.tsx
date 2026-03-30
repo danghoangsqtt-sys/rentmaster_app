@@ -1,15 +1,15 @@
 
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Bell, User, Search, PlusCircle, Calendar, ListChecks } from 'lucide-react';
-import { getStoredProperties, getStoredProfile } from '../data/mockData';
+import { LayoutDashboard, Bell, User, Search, Calendar, Plus, Home } from 'lucide-react';
 import { getPropertyAlerts } from '../utils/alertUtils';
+import { useAppContext } from '../data/AppContext';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { properties, profile } = useAppContext();
   const [totalAlerts, setTotalAlerts] = React.useState(0);
-  const [profile, setProfile] = React.useState<any>(null);
 
   const isFormPage = 
     location.pathname.includes('/property/new') || 
@@ -18,129 +18,109 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     location.search.includes('add=true');
 
   React.useEffect(() => {
-    const loadData = async () => {
-      const props = await getStoredProperties();
-      const count = props.flatMap(p => getPropertyAlerts(p)).length;
-      setTotalAlerts(count);
-      const prof = await getStoredProfile();
-      setProfile(prof);
-    };
-    loadData();
-  }, [location.pathname]);
+    const count = properties.flatMap((p: any) => getPropertyAlerts(p)).length;
+    setTotalAlerts(count);
+  }, [properties]);
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-slate-50 dark:bg-slate-900 shadow-2xl overflow-hidden border-x border-slate-200 dark:border-slate-800 relative">
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-white shadow-2xl overflow-hidden border-x border-slate-200 relative">
       {/* Header */}
-      <header className="bg-white dark:bg-slate-800 glass-effect pt-safe sticky top-0 z-50 border-b border-slate-100 dark:border-slate-700 shadow-sm transition-all duration-300">
-        <div className="px-5 pt-4 pb-3 flex flex-col gap-3">
-          <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-              <h1 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-none">
-                RentMaster <span className="text-blue-600 dark:text-blue-400">Pro</span>
-              </h1>
-              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-1 uppercase tracking-[0.15em]">
-                Smart Management
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-2.5">
-              <button 
-                onClick={() => navigate('/notifications')}
-                className="relative p-2.5 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl border border-slate-100 dark:border-slate-600 active:scale-95 transition-all shadow-sm"
-              >
-                <Bell size={18} />
-                {totalAlerts > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-800 font-black animate-pulse">
-                    {totalAlerts}
-                  </span>
-                )}
-              </button>
-              <button 
-                onClick={() => navigate('/profile')}
-                className="w-10 h-10 rounded-2xl border-2 border-white dark:border-slate-600 shadow-md overflow-hidden active:scale-95 transition-all bg-slate-100"
-              >
-                <img src={profile?.photo || "https://i.pravatar.cc/150?u=manager"} className="w-full h-full object-cover" alt="Profile" />
-              </button>
-            </div>
+      <header className="bg-slate-50/80 backdrop-blur-xl pt-safe sticky top-0 z-50 transition-all duration-300 pb-2">
+        <div className="px-5 pt-4 pb-1 flex justify-between items-center">
+          <div className="flex flex-col">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-none flex items-center gap-2">
+              <img src="/rentmaster_logo.png" alt="Logo" className="w-7 h-7 rounded-[8px] object-cover shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-slate-100" />
+              RentMaster <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1"></div>
+            </h1>
           </div>
-
-          {!isFormPage && (
-            <div 
-              onClick={() => navigate('/properties')}
-              className="flex items-center gap-2.5 bg-slate-100 dark:bg-slate-700/50 rounded-[1.25rem] px-4 py-3 text-slate-400 dark:text-slate-500 cursor-pointer hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-all border border-transparent dark:border-slate-700"
+          
+          <div className="flex items-center gap-2">
+            {!isFormPage && (
+              <button title="Quản lý nhà" onClick={() => navigate('/properties')} className="w-10 h-10 bg-white text-slate-800 flex items-center justify-center rounded-full active:scale-95 transition-all shadow-[0_2px_10px_rgb(0,0,0,0.04)] border border-slate-100">
+                <Home size={18} strokeWidth={2.5} />
+              </button>
+            )}
+            <button 
+              title="Thông báo"
+              onClick={() => navigate('/notifications')}
+              className="relative w-10 h-10 bg-white text-slate-800 rounded-full flex items-center justify-center border border-slate-100 active:scale-95 transition-all shadow-[0_2px_10px_rgb(0,0,0,0.04)]"
             >
-              <Search size={16} />
-              <span className="text-[13px] font-medium">Tìm căn hộ, cư dân, chủ nhà...</span>
-            </div>
-          )}
+              <Bell size={18} strokeWidth={2.5} />
+              {totalAlerts > 0 && (
+                <span className="absolute top-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white"></span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className={`flex-1 overflow-y-auto custom-scrollbar bg-[#F8FAFC] dark:bg-slate-900 ${!isFormPage ? 'pb-28 px-5 py-6' : ''}`}>
+      <main className={`flex-1 overflow-y-auto custom-scrollbar bg-white ${!isFormPage ? 'pb-24 px-4 py-5' : ''}`}>
         {children}
       </main>
 
-      {/* Navigation */}
+      {/* Navigation - Floating Dribbble Style */}
       {!isFormPage && (
-        <nav className="fixed bottom-0 w-full max-w-md glass-effect border-t border-slate-100 dark:border-slate-800 px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] flex justify-between items-center z-50 rounded-t-[2.5rem] shadow-[0_-10px_25px_rgba(0,0,0,0.05)] transition-all duration-300">
-          <NavLink 
-            to="/" 
-            className={({ isActive }) => `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-slate-400 dark:text-slate-600 hover:text-slate-500'}`}
-          >
-            {({ isActive }) => (
-              <>
-                <LayoutDashboard size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Tổng quan</span>
-              </>
-            )}
-          </NavLink>
+        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto z-50 pb-[calc(1.5rem+env(safe-area-inset-bottom))] px-6 pointer-events-none">
+          <nav className="bg-[#383C43] rounded-full p-2 flex justify-between items-center shadow-2xl shadow-slate-900/30 pointer-events-auto relative">
+            <NavLink 
+              to="/" 
+              className={({ isActive }) => `relative w-11 h-11 flex items-center justify-center rounded-full transition-all duration-300 ${isActive ? 'bg-white text-slate-900 shadow-md scale-110' : 'text-slate-400 hover:text-white'}`}
+            >
+              {({ isActive }) => (
+                <>
+                  <LayoutDashboard size={20} strokeWidth={isActive ? 2.5 : 2} fill={isActive ? "currentColor" : "none"} />
+                  {isActive && <div className="absolute top-1 right-2 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-white"></div>}
+                </>
+              )}
+            </NavLink>
 
-          <NavLink 
-            to="/schedule" 
-            className={({ isActive }) => `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-slate-400 dark:text-slate-600 hover:text-slate-500'}`}
-          >
-            {({ isActive }) => (
-              <>
-                <Calendar size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Lịch trình</span>
-              </>
-            )}
-          </NavLink>
-          
-          <button 
-            onClick={() => navigate('/property/new')} 
-            className="flex flex-col items-center -mt-10"
-          >
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-[1.75rem] shadow-2xl shadow-blue-200 dark:shadow-none flex items-center justify-center active:scale-90 hover:scale-105 transition-all border-[4px] border-white dark:border-slate-800">
-              <PlusCircle size={30} />
-            </div>
-          </button>
+            <NavLink 
+              to="/schedule" 
+              className={({ isActive }) => `relative w-11 h-11 flex items-center justify-center rounded-full transition-all duration-300 ${isActive ? 'bg-white text-slate-900 shadow-md scale-110' : 'text-slate-400 hover:text-white'}`}
+            >
+              {({ isActive }) => (
+                <Calendar size={20} strokeWidth={isActive ? 2.5 : 2} fill={isActive ? "currentColor" : "none"} />
+              )}
+            </NavLink>
+            
+            <button 
+              title="Thêm mới dữ liệu"
+              onClick={() => {
+                if (location.pathname === '/schedule') {
+                   navigate('/schedule?add=true');
+                } else {
+                   navigate('/property/new');
+                }
+              }} 
+              className={`relative w-12 h-12 flex items-center justify-center rounded-full shadow-md active:scale-95 transition-all text-sm ${
+                location.pathname === '/schedule' || location.pathname === '/properties'
+                  ? 'bg-blue-600 text-white shadow-blue-500/30'
+                  : 'bg-white text-slate-900 border border-slate-100'
+              }`}
+            >
+              <Plus size={24} strokeWidth={2.5} />
+            </button>
 
-          <NavLink 
-            to="/properties" 
-            className={({ isActive }) => `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-slate-400 dark:text-slate-600 hover:text-slate-500'}`}
-          >
-            {({ isActive }) => (
-              <>
-                <ListChecks size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Danh sách</span>
-              </>
-            )}
-          </NavLink>
+            <NavLink 
+              to="/properties" 
+              className={({ isActive }) => `relative w-11 h-11 flex items-center justify-center rounded-full transition-all duration-300 ${isActive ? 'bg-white text-slate-900 shadow-md scale-110' : 'text-slate-400 hover:text-white'}`}
+            >
+              {({ isActive }) => (
+                <Home size={20} strokeWidth={isActive ? 2.5 : 2} fill={isActive ? "currentColor" : "none"} />
+              )}
+            </NavLink>
 
-          <NavLink 
-            to="/profile" 
-            className={({ isActive }) => `flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-blue-600 scale-110' : 'text-slate-400 dark:text-slate-600 hover:text-slate-500'}`}
-          >
-            {({ isActive }) => (
-              <>
-                <User size={22} strokeWidth={isActive ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Cá nhân</span>
-              </>
-            )}
-          </NavLink>
-        </nav>
+            <NavLink 
+              to="/profile" 
+              className={({ isActive }) => `relative w-11 h-11 flex items-center justify-center rounded-full transition-all duration-300 ${isActive ? 'bg-white text-slate-900 shadow-md scale-110' : 'text-slate-400 hover:text-white'}`}
+            >
+              {({ isActive }) => (
+                <User size={20} strokeWidth={isActive ? 2.5 : 2} fill={isActive ? "currentColor" : "none"} />
+              )}
+            </NavLink>
+          </nav>
+        </div>
       )}
     </div>
   );

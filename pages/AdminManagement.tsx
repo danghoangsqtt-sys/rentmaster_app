@@ -7,7 +7,8 @@ import {
   Users, Award, Filter, MoreHorizontal, 
   ChevronRight, ArrowUpRight
 } from 'lucide-react';
-import { getStoredUsers, saveUsersList, UserAccount } from '../data/mockData';
+import { getStoredUsers, saveUsersList } from '../data/mockData';
+import { UserAccount } from '../types';
 
 const AdminManagement: React.FC = () => {
   const navigate = useNavigate();
@@ -66,12 +67,12 @@ const AdminManagement: React.FC = () => {
       {/* Header */}
       <div className="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-50 border-b border-slate-100 shadow-sm">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-1.5 bg-slate-50 rounded-lg text-slate-500 active:scale-90 transition-transform">
+          <button title="Quay lại" onClick={() => navigate(-1)} className="p-1.5 bg-slate-50 rounded-lg text-slate-500 active:scale-90 transition-transform">
             <ArrowLeft size={16} />
           </button>
           <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight">Quản trị hệ thống</h2>
         </div>
-        <button className="p-2 bg-slate-50 text-slate-400 rounded-lg">
+        <button title="Tùy chọn" className="p-2 bg-slate-50 text-slate-400 rounded-lg">
           <MoreHorizontal size={18} />
         </button>
       </div>
@@ -156,7 +157,7 @@ const AdminManagement: React.FC = () => {
                   {user.isPro ? <CheckCircle2 size={16} /> : <Zap size={16} />}
                   <span className="text-[8px] font-black uppercase">{user.isPro ? 'Hủy Pro' : 'Dùng Pro'}</span>
                 </button>
-                <button className="p-2 text-slate-300 hover:text-blue-500 group-hover:translate-x-0.5 transition-all">
+                <button title="Chi tiết" className="p-2 text-slate-300 hover:text-blue-500 group-hover:translate-x-0.5 transition-all">
                   <ChevronRight size={16} />
                 </button>
               </div>

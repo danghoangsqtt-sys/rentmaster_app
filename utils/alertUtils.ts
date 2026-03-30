@@ -90,5 +90,47 @@ export const getPropertyAlerts = (property: Property): AppNotification[] => {
     }
   }
 
+  // Cảnh báo thanh toán Dịch vụ dành cho Chủ nhà (Không phụ thuộc vào việc có khách thuê hay không)
+  if (property.utilities) {
+    const checkOwnerPaymentDay = (day: number | undefined, type: NotificationType, label: string) => {
+      if (!day) return;
+      
+      const diff = day - currentDay;
+      if (diff > 0 && diff <= 3) {
+         alerts.push({
+           id: `${type}-pre-${property.id}`,
+           propertyId: property.id,
+           propertyName: property.name,
+           type,
+           dueDate: `Ngày ${day}`,
+           message: `Sắp tới hạn ĐÓNG ${label} (Còn ${diff} ngày)`
+         });
+      } else if (diff === 0) {
+         alerts.push({
+           id: `${type}-today-${property.id}`,
+           propertyId: property.id,
+           propertyName: property.name,
+           type,
+           dueDate: `Hôm nay`,
+           message: `HÔM NAY LÀ HẠN ĐÓNG ${label.toUpperCase()}!`
+         });
+      } else if (diff < 0 && Math.abs(diff) <= 7) {
+         // Thông báo nợ quá hạn (chỉ báo trong vòng 7 ngày để tránh spam)
+         alerts.push({
+           id: `${type}-overdue-${property.id}`,
+           propertyId: property.id,
+           propertyName: property.name,
+           type,
+           dueDate: `Quá hạn ${Math.abs(diff)} ngày`,
+           message: `ĐÃ QUÁ HẠN CHỐT ${label.toUpperCase()}!`
+         });
+      }
+    };
+
+    checkOwnerPaymentDay(property.utilities.electricityPaymentDay, 'OWNER_ELECTRICITY_DUE', 'tiền điện (EVN)');
+    checkOwnerPaymentDay(property.utilities.waterPaymentDay, 'OWNER_WATER_DUE', 'tiền nước Sawaco');
+    checkOwnerPaymentDay(property.utilities.wifiPaymentDay, 'OWNER_WIFI_DUE', 'cước Internet');
+  }
+
   return alerts;
 };

@@ -47,7 +47,11 @@ const PhotoPicker: React.FC<PhotoPickerProps> = ({ label, images, onChange, mult
     onChange(newImages);
   };
 
-  const isVideo = (data: string) => data.startsWith('data:video');
+  const isVideo = (data: string) => {
+    if (!data) return false;
+    if (data.startsWith('data:video')) return true;
+    return /\.(mp4|webm|mov|ogg)(\?.*)?$/i.test(data);
+  };
 
   return (
     <div className="space-y-3">
@@ -67,6 +71,7 @@ const PhotoPicker: React.FC<PhotoPickerProps> = ({ label, images, onChange, mult
               <img src={StorageService.getDisplayUrl(img)} className="w-full h-full object-cover" alt="" />
             )}
             <button 
+              title="Xóa"
               onClick={() => removeImage(idx)}
               className="absolute top-1 right-1 bg-rose-500 text-white p-1 rounded-lg shadow-lg active:scale-90 transition-transform"
             >
