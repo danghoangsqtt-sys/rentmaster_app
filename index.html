@@ -67,43 +67,58 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #0f172a;
+      background: #f8fafc;
       z-index: 9999;
-      transition: opacity 0.4s ease-out;
+      transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s;
     }
-    .loader-icon {
-      width: 60px;
-      height: 60px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
-      animation: pulse 2s infinite;
-      box-shadow: 0 0 30px rgba(59, 130, 246, 0.4);
+    .loader-brand {
+      width: 110px;
+      height: 110px;
+      margin-bottom: 30px;
+      border-radius: 26px;
+      background: url('/rentmaster_logo.png') center/cover no-repeat;
+      animation: float 3s ease-in-out infinite, pulse-glow 2s infinite;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
     }
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.1); opacity: 0.8; }
-      100% { transform: scale(1); opacity: 1; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
     }
-    .spinner {
-      width: 24px;
-      height: 24px;
-      border: 3px solid rgba(255,255,255,0.1);
-      border-top-color: #ffffff;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15); }
+      50% { box-shadow: 0 20px 45px rgba(59, 130, 246, 0.35); }
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
     .loader-text {
-      color: white;
-      font-size: 10px;
+      font-size: 20px;
       font-weight: 800;
-      letter-spacing: 4px;
-      opacity: 0.6;
+      letter-spacing: 1.5px;
       text-transform: uppercase;
+      background: linear-gradient(135deg, #0284c7, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 16px;
+    }
+    .loader-bar-container {
+      width: 150px;
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+    .loader-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 30%;
+      background: linear-gradient(90deg, #0ea5e9, #6366f1);
+      border-radius: 4px;
+      animation: loading-bar 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+    }
+    @keyframes loading-bar {
+      0% { left: -30%; }
+      100% { left: 130%; }
     }
   </style>
 
@@ -153,10 +168,11 @@
   <div id="error-display"></div>
 
   <div id="initial-loader">
-    <div class="loader-icon">
-      <div class="spinner"></div>
+    <div class="loader-brand"></div>
+    <p class="loader-text">RentMaster</p>
+    <div class="loader-bar-container">
+      <div class="loader-bar"></div>
     </div>
-    <p class="loader-text">RentMaster Pro</p>
   </div>
   
   <div id="root" class="h-full"></div>
@@ -181,6 +197,5 @@
       }
     }, 5000);
   </script>
-<script type="module" src="/index.tsx"></script>
 </body>
 </html>

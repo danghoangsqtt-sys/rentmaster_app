@@ -1,13 +1,14 @@
 import { Client, Databases, Storage, ID, Query } from 'appwrite';
 import { Property, Owner, ScheduleEvent, UserProfile, UserAccount } from '../types';
 import { StorageService } from './StorageService';
+import { sanitizeObject, isFileSizeAcceptable, secureLog, MAX_UPLOAD_SIZE_BYTES } from '../utils/securityUtils';
 
 // ==========================================
 // CẤU HÌNH APPWRITE: BẠN CẦN ĐIỀN ID VÀO ĐÂY
 // ==========================================
 const APPWRITE_ENDPOINT = 'https://sgp.cloud.appwrite.io/v1';
-const APPWRITE_PROJECT_ID = (import.meta as any).env?.VITE_APPWRITE_PROJECT_ID || '69c9c1cd0033d191f1d5';
-const APPWRITE_DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || '69c9c20800386273d4df';
+const APPWRITE_PROJECT_ID = (import.meta as any).env?.VITE_APPWRITE_PROJECT_ID || '';
+const APPWRITE_DATABASE_ID = (import.meta as any).env?.VITE_APPWRITE_DATABASE_ID || '';
 const APPWRITE_BUCKET_ID = (import.meta as any).env?.VITE_APPWRITE_BUCKET_ID || 'media';
 
 
@@ -33,7 +34,7 @@ export class AppwriteService {
    * Kiểm tra xem người dùng đã nhập Project ID thật chưa
    */
   static isConfigured(): boolean {
-    return APPWRITE_PROJECT_ID !== 'YOUR_PROJECT_ID_HERE';
+    return !!APPWRITE_PROJECT_ID && APPWRITE_PROJECT_ID !== 'YOUR_PROJECT_ID_HERE';
   }
 
   // --- PROPERTIES ---
@@ -54,7 +55,7 @@ export class AppwriteService {
         return property as Property;
       });
     } catch (e) {
-      console.error("Lỗi getProperties Appwrite:", e);
+      secureLog.error("Lỗi getProperties Appwrite", e);
       return [];
     }
   }
@@ -96,7 +97,7 @@ export class AppwriteService {
         if (err.code === 404) {
           await databases.createDocument(APPWRITE_DATABASE_ID, COL_PROPERTIES, p.id, dataToSave);
         } else {
-          console.error("Lỗi khi saveProperty", err);
+          secureLog.error("Lỗi khi saveProperty", err);
         }
       }
     }
@@ -113,7 +114,7 @@ export class AppwriteService {
         return owner as Owner;
       });
     } catch (e) {
-      console.error("Lỗi getOwners Appwrite:", e);
+      secureLog.error("Lỗi getOwners Appwrite", e);
       return [];
     }
   }
@@ -160,7 +161,7 @@ export class AppwriteService {
       const response = await databases.listDocuments(APPWRITE_DATABASE_ID, COL_SCHEDULES, [Query.limit(100)]);
       return response.documents.map(doc => ({ ...doc, id: doc.$id } as unknown as ScheduleEvent));
     } catch (e) {
-      console.error("Lỗi getSchedules Appwrite:", e);
+      secureLog.error("Lỗi getSchedules Appwrite", e);
       return [];
     }
   }
@@ -200,9 +201,15 @@ export class AppwriteService {
   /**
    * Tải File Base64 lên Bucket Appwrite Storage, trả về File URL (nén cho ảnh WebP, view gốc cho file khác).
    */
-  static async uploadMedia(base64Data: string, prefix: string = 'media'): Promise<string> {
+   static async uploadMedia(base64Data: string, prefix: string = 'media'): Promise<string> {
     // Để an toàn và hỗ trợ backwards-compatibility với Local Storage, nếu chuỗi ko phải Base64 thì bỏ qua
     if (!base64Data || base64Data.startsWith('http')) return base64Data;
+    
+    // BẢO VỆ: Kiểm tra kích thước file trước khi upload (tối đa 5MB)
+    if (!isFileSizeAcceptable(base64Data)) {
+      secureLog.error(`File vượt quá giới hạn ${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024}MB, từ chối upload.`);
+      throw new Error(`File vượt quá giới hạn ${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024}MB. Vui lòng chọn file nhỏ hơn.`);
+    }
     
     if (!this.isConfigured()) {
       // Fallback tạm thời nếu chưa setup Appwrite, trả về base64 thuần
@@ -248,7 +255,7 @@ export class AppwriteService {
       }
       return fileUrl;
     } catch (e) {
-      console.error("Lỗi upload media Appwrite:", e);
+      secureLog.error("Lỗi upload media Appwrite", e);
       return base64Data;
     }
   }
@@ -273,7 +280,7 @@ export class AppwriteService {
       }
       return false;
     } catch (e) {
-      console.error("Lỗi xoá media Appwrite:", e);
+      secureLog.error("Lỗi xóa media Appwrite", e);
       return false;
     }
   }

@@ -1,6 +1,7 @@
 import { Property, Owner, ScheduleEvent, UserProfile, UserAccount } from '../types';
 import { StorageService } from '../services/StorageService';
 import { AppwriteService } from '../services/AppwriteService';
+import { hashPassword, verifyPassword, sanitizeObject, secureLog } from '../utils/securityUtils';
 
 const PROPERTIES_FILE = 'properties';
 const SCHEDULE_FILE = 'schedule';
@@ -87,10 +88,11 @@ export const seedInitialData = async () => {
   // Seed default admin user if none exists
   const existingUsers = await StorageService.readJson(USERS_FILE);
   if (!existingUsers || existingUsers.length === 0) {
+    const hashedPwd = await hashPassword('123');
     const adminUser: UserAccount = {
       email: 'admin@rentmaster.pro',
       username: 'admin',
-      password: '123',
+      password: hashedPwd,
       name: 'Quản lý viên',
       photo: 'https://i.pravatar.cc/150?u=manager',
       isPro: true
@@ -150,20 +152,27 @@ export const saveUsersList = async (users: UserAccount[]) => {
 
 export const verifyLogin = async (identity: string, password: string): Promise<UserAccount | null> => {
   const users = await getStoredUsers();
-  const user = users.find(u => (u.username === identity || u.email === identity) && u.password === password);
-  return user || null;
+  for (const u of users) {
+    if ((u.username === identity || u.email === identity) && u.password) {
+      const isMatch = await verifyPassword(password, u.password);
+      if (isMatch) return u;
+    }
+  }
+  return null;
 };
 
 export const registerUser = async (data: any): Promise<{ success: boolean; message: string }> => {
   const users = await getStoredUsers();
-  if (users.find(u => u.username === data.username || u.email === data.email)) {
+  const cleanData = sanitizeObject(data);
+  if (users.find(u => u.username === cleanData.username || u.email === cleanData.email)) {
     return { success: false, message: "Tài khoản hoặc email đã tồn tại." };
   }
+  const hashedPwd = await hashPassword(cleanData.password);
   const newUser: UserAccount = {
-    email: data.email,
-    username: data.username,
-    password: data.password,
-    name: data.name || data.username,
+    email: cleanData.email,
+    username: cleanData.username,
+    password: hashedPwd,
+    name: cleanData.name || cleanData.username,
     isPro: false
   };
   const updated = [...users, newUser];

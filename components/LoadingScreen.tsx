@@ -4,34 +4,36 @@ import { Building2, Sparkles, ShieldCheck } from 'lucide-react';
 
 const LoadingScreen: React.FC = () => {
   return (
-    <div className="fixed inset-0 z-[100] bg-[#0F172A] flex flex-col items-center justify-center text-white overflow-hidden">
+    <div className="fixed inset-0 z-[100] max-w-md mx-auto bg-[#f8fafc] flex flex-col items-center justify-center overflow-hidden shadow-2xl border-x border-slate-200">
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full">
-        <div className="absolute top-[-10%] right-[-10%] w-80 h-80 bg-blue-600/10 blur-[120px] rounded-full"></div>
-        <div className="absolute bottom-[-10%] left-[-10%] w-80 h-80 bg-indigo-600/10 blur-[120px] rounded-full"></div>
+        <div className="absolute top-[-5%] right-[-10%] w-80 h-80 bg-blue-100/60 blur-[100px] rounded-full"></div>
+        <div className="absolute bottom-[-5%] left-[-10%] w-80 h-80 bg-emerald-100/50 blur-[100px] rounded-full"></div>
       </div>
 
       <div className="relative">
         {/* Animated Glow */}
-        <div className="absolute inset-0 bg-blue-500/30 blur-[60px] rounded-full animate-pulse"></div>
+        <div className="absolute inset-0 bg-blue-300/30 blur-[40px] rounded-full animate-pulse"></div>
         
         {/* Logo Container */}
-        <div className="relative z-10 w-28 h-28 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2.75rem] flex items-center justify-center shadow-[0_20px_50px_rgba(37,99,235,0.3)] rotate-12 animate-in zoom-in duration-1000 border border-white/10">
-          <Building2 size={56} className="-rotate-12 text-white" />
+        <div 
+          className="relative z-10 w-28 h-28 rounded-[2rem] bg-cover bg-center shadow-[0_15px_35px_rgba(0,0,0,0.1)] border border-white animate-in zoom-in duration-1000"
+          style={{ backgroundImage: "url('/rentmaster_logo.png')" }}
+        >
         </div>
       </div>
       
       <div className="mt-12 text-center space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-500">
         <div className="flex flex-col items-center">
-          <h1 className="text-4xl font-black tracking-tight italic bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-400">
-            RentMaster <span className="text-blue-500">Pro</span>
+          <h1 className="text-3xl font-black tracking-tight italic bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-cyan-500">
+            RentMaster <span className="text-emerald-500">Pro</span>
           </h1>
-          <div className="h-px w-20 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent mt-2"></div>
+           <div className="h-[2px] w-16 bg-gradient-to-r from-transparent via-blue-300/50 to-transparent mt-3"></div>
         </div>
         
         <div className="flex items-center justify-center gap-2.5">
-          <Sparkles size={14} className="text-amber-400 fill-amber-400" />
-          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-400">
+          <Sparkles size={14} className="text-amber-500 fill-amber-500" />
+          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-slate-500">
             Professional Real Estate
           </p>
         </div>
@@ -39,12 +41,12 @@ const LoadingScreen: React.FC = () => {
 
       {/* Progress Indicator */}
       <div className="absolute bottom-20 w-56 space-y-4 flex flex-col items-center">
-        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-[loading_2.5s_ease-in-out_infinite]"></div>
+        <div className="w-full h-1.5 bg-slate-200/80 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(59,130,246,0.5)] animate-[loading_2.5s_ease-in-out_infinite]"></div>
         </div>
-        <div className="flex items-center gap-2 text-slate-500">
-          <ShieldCheck size={12} />
-          <span className="text-[9px] font-black uppercase tracking-widest">Secure Connection</span>
+        <div className="flex items-center gap-2 text-slate-400 font-medium">
+          <ShieldCheck size={14} strokeWidth={2.5}/>
+          <span className="text-[10px] uppercase tracking-widest">Secure Environment</span>
         </div>
       </div>
 
