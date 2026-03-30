@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, HardDrive, Camera, X } from 'lucide-react';
 import { requestNotificationPermission, requestStoragePersistence } from '../utils/permissionUtils';
+import { Capacitor } from '@capacitor/core';
 
 interface Props {
   onComplete: () => void;
@@ -11,7 +12,6 @@ export const PermissionModal: React.FC<Props> = ({ onComplete }) => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    // Kích hoạt animation trượt lên sau khi mount
     const timer = setTimeout(() => setIsVisible(true), 100);
     return () => clearTimeout(timer);
   }, []);
@@ -19,15 +19,35 @@ export const PermissionModal: React.FC<Props> = ({ onComplete }) => {
   const handleGrantPermissions = async () => {
     setIsProcessing(true);
     
-    // Xin các quyền cốt lõi của PWA
+    // 1. Xin quyền Web (PWA) - Notification + Storage Persistence
     await requestNotificationPermission();
     await requestStoragePersistence();
+    
+    // 2. Xin quyền Native Android/iOS thật sự qua Capacitor
+    if (Capacitor.isNativePlatform()) {
+      try {
+        // Yêu cầu quyền Camera từ hệ điều hành
+        const { Camera: CapCamera } = await import('@capacitor/camera' as any).catch(() => ({ Camera: null }));
+        if (CapCamera?.requestPermissions) {
+          await CapCamera.requestPermissions({ permissions: ['camera', 'photos'] });
+        }
+        
+        // Yêu cầu quyền Notification từ hệ điều hành (Android 13+)
+        const { LocalNotifications } = await import('@capacitor/local-notifications' as any).catch(() => ({ LocalNotifications: null }));
+        if (LocalNotifications?.requestPermissions) {
+          await LocalNotifications.requestPermissions();
+        }
+      } catch (err) {
+        // Nếu plugin chưa cài, fallback sang Web API - không ảnh hưởng UX
+        console.warn('Native permission plugins not available, using web fallback.', err);
+      }
+    }
     
     // Đóng form mượt mà
     setIsVisible(false);
     setTimeout(() => {
       onComplete();
-    }, 300); // Đợi animation slide down hoàn tất
+    }, 300);
   };
 
   const handleSkip = () => {
