@@ -42,7 +42,7 @@ export class AppwriteService {
     if (!this.isConfigured()) return (await StorageService.readJson('properties')) || [];
     try {
       const response = await databases.listDocuments(APPWRITE_DATABASE_ID, COL_PROPERTIES, [Query.limit(100)]);
-      return response.documents.map(doc => {
+      const onlineData = response.documents.map(doc => {
         // Parse nested JSON
         const property: any = { ...doc };
         if (doc.assets) property.assets = JSON.parse(doc.assets);
@@ -54,21 +54,22 @@ export class AppwriteService {
         property.id = doc.$id;
         return property as Property;
       });
+      await StorageService.saveJson('properties', onlineData);
+      return onlineData;
     } catch (e) {
-      secureLog.error("Lỗi getProperties Appwrite", e);
-      return [];
+      secureLog.error("Lỗi getProperties Appwrite (Mất mạng), fallback to local cache", e);
+      return (await StorageService.readJson('properties')) || [];
     }
   }
 
   static async saveProperties(properties: Property[]): Promise<void> {
-    if (!this.isConfigured()) {
-      await StorageService.saveJson('properties', properties);
-      return;
-    }
+    const safeProps = sanitizeObject(properties);
+    await StorageService.saveJson('properties', safeProps);
+    if (!this.isConfigured()) return;
     
     // Thuật toán ghi: Đoạn này nên tối ưu tuỳ logic. Do yêu cầu đồng bộ toàn bộ mảng thay vì chỉnh sửa lẻ
     // ta có thể thực hiện xoá cũ tạo mới hoặc update. Để an toàn, đây là hàm ví dụ update Document
-    for (const p of properties) {
+    for (const p of safeProps) {
       const dataToSave = {
         name: p.name,
         type: p.type,
@@ -108,23 +109,25 @@ export class AppwriteService {
     if (!this.isConfigured()) return (await StorageService.readJson('owners')) || [];
     try {
       const response = await databases.listDocuments(APPWRITE_DATABASE_ID, COL_OWNERS, [Query.limit(100)]);
-      return response.documents.map(doc => {
+      const onlineData = response.documents.map(doc => {
         const owner: any = { ...doc };
         owner.id = doc.$id;
         return owner as Owner;
       });
+      await StorageService.saveJson('owners', onlineData);
+      return onlineData;
     } catch (e) {
-      secureLog.error("Lỗi getOwners Appwrite", e);
-      return [];
+      secureLog.error("Lỗi getOwners Appwrite (Mất mạng), fallback to local cache", e);
+      return (await StorageService.readJson('owners')) || [];
     }
   }
 
   static async saveOwners(owners: Owner[]): Promise<void> {
-    if (!this.isConfigured()) {
-      await StorageService.saveJson('owners', owners);
-      return;
-    }
-    for (const o of owners) {
+    const safeOwners = sanitizeObject(owners);
+    await StorageService.saveJson('owners', safeOwners);
+    if (!this.isConfigured()) return;
+    
+    for (const o of safeOwners) {
       // Tự động kiểm tra và convert Base64 sang URL ngắn nếu có (bảo vệ giới hạn DB Schema frontend/backend)
       let finalAvatarUrl = o.avatarUrl;
       let finalIdFront = o.idCardFront;
@@ -159,19 +162,21 @@ export class AppwriteService {
     if (!this.isConfigured()) return (await StorageService.readJson('schedule')) || [];
     try {
       const response = await databases.listDocuments(APPWRITE_DATABASE_ID, COL_SCHEDULES, [Query.limit(100)]);
-      return response.documents.map(doc => ({ ...doc, id: doc.$id } as unknown as ScheduleEvent));
+      const onlineData = response.documents.map(doc => ({ ...doc, id: doc.$id } as unknown as ScheduleEvent));
+      await StorageService.saveJson('schedule', onlineData);
+      return onlineData;
     } catch (e) {
-      secureLog.error("Lỗi getSchedules Appwrite", e);
-      return [];
+      secureLog.error("Lỗi getSchedules Appwrite (Mất mạng), fallback to local cache", e);
+      return (await StorageService.readJson('schedule')) || [];
     }
   }
 
   static async saveSchedules(schedules: ScheduleEvent[]): Promise<void> {
-    if (!this.isConfigured()) {
-      await StorageService.saveJson('schedule', schedules);
-      return;
-    }
-    for (const s of schedules) {
+    const safeSchedules = sanitizeObject(schedules);
+    await StorageService.saveJson('schedule', safeSchedules);
+    if (!this.isConfigured()) return;
+    
+    for (const s of safeSchedules) {
       const dataToSave = {
         title: s.title,
         description: s.description || '',
